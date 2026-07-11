@@ -90,7 +90,10 @@ function renderNode(node, context, state = {}) {
       const src = node.getAttribute?.("src") || node.getAttribute?.("data-src") || node.getAttribute?.("data-original") || "";
       if (!src) return "";
       const id = context.images.length + 1;
-      context.images.push({ id, src, alt: node.getAttribute?.("alt") || "图片" });
+      const image = { id, src, alt: node.getAttribute?.("alt") || "图片" };
+      const cacheId = node.getAttribute?.("data-feishu-cache-id");
+      if (cacheId) image.cacheId = cacheId;
+      context.images.push(image);
       return `@@FEISHU_IMAGE_${id}@@`;
     }
     case "ul":

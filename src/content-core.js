@@ -80,7 +80,34 @@ export function findArticleRoot(documentRef) {
 export function cleanArticleClone(articleRoot) {
   const clone = articleRoot.cloneNode(true);
   clone.querySelectorAll?.(REMOVE_SELECTORS.join(",")).forEach((element) => element.remove());
+  stabilizeFeishuImageUrls(clone);
   return clone;
+}
+
+export function stabilizeFeishuImageUrls(root) {
+  for (const holder of Array.from(root?.querySelectorAll?.("[image-token]") ?? [])) {
+    const image = holder.querySelector?.("img");
+    const source = image?.getAttribute?.("src") || "";
+    if (!source.startsWith("blob:")) continue;
+
+    const imageToken = holder.getAttribute?.("image-token");
+    const recordId = holder.closest?.("[data-record-id]")?.getAttribute?.("data-record-id");
+    if (!imageToken || !recordId) continue;
+
+    const url = new URL(
+      `https://internal-api-drive-stream.feishu.cn/space/api/box/stream/download/v2/cover/${encodeURIComponent(imageToken)}/`,
+    );
+    url.search = new URLSearchParams({
+      fallback_source: "1",
+      height: "1280",
+      mount_node_token: recordId,
+      mount_point: "docx_image",
+      policy: "equal",
+      width: "1280",
+    }).toString();
+    image.setAttribute("src", url.href);
+  }
+  return root;
 }
 
 export function absolutizeCloneUrls(clone, baseUrl) {
@@ -175,6 +202,40 @@ export async function collectVirtualizedBlocks({
   }
 
   return { complete: stablePasses >= stableBottomPasses, passes };
+}
+
+export async function cacheRenderedBlobImages({
+  documentRef,
+  collection,
+  cache,
+  readImage,
+}) {
+  let captured = 0;
+  const liveBlocks = documentRef.querySelectorAll(".page-main .block[data-record-id]");
+  for (const liveBlock of Array.from(liveBlocks)) {
+    const recordId = liveBlock.getAttribute("data-record-id");
+    const record = collection.get(recordId);
+    if (!record) continue;
+
+    const liveImages = Array.from(liveBlock.querySelectorAll?.("img") ?? []);
+    const clonedImages = Array.from(record.clone.querySelectorAll?.("img") ?? []);
+    for (let index = 0; index < Math.min(liveImages.length, clonedImages.length); index += 1) {
+      const source = liveImages[index].getAttribute?.("src") || "";
+      if (!source.startsWith("blob:")) continue;
+
+      const cacheId = `${recordId}:${index}`;
+      if (!cache.has(cacheId)) {
+        try {
+          cache.set(cacheId, await readImage(source));
+        } catch {
+          continue;
+        }
+      }
+      clonedImages[index].setAttribute("data-feishu-cache-id", cacheId);
+      captured += 1;
+    }
+  }
+  return captured;
 }
 
 export async function waitForStableCollection({

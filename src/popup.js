@@ -115,7 +115,11 @@ async function saveCurrentArticle() {
     showStatus(`正在处理 ${converted.images.length} 张图片…`);
     const imageResults = new Map();
     for (const image of converted.images) {
-      const response = await sendToCurrentTab({ type: "FETCH_IMAGE", url: image.src });
+      const response = await sendToCurrentTab({
+        type: "FETCH_IMAGE",
+        url: image.src,
+        cacheId: image.cacheId,
+      });
       if (response?.ok) {
         imageResults.set(image.id, {
           ok: true,

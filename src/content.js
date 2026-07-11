@@ -1,4 +1,5 @@
 const corePromise = import(chrome.runtime.getURL("src/content-core.js"));
+const imageBlobCache = new Map();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "EXTRACT_ARTICLE") {
@@ -6,7 +7,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
   if (message?.type === "FETCH_IMAGE") {
-    fetchImage(message.url).then(sendResponse);
+    fetchImage(message.url, message.cacheId).then(sendResponse);
     return true;
   }
   return false;
@@ -14,6 +15,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function extractArticle() {
   try {
+    imageBlobCache.clear();
     const core = await corePromise;
     if (core.isLikelyAccessError(document)) {
       return { ok: false, error: "当前页面未登录、无访问权限或文档不存在。" };
@@ -67,10 +69,17 @@ async function extractCompleteArticle(core, root) {
 }
 
 async function waitForStableRenderedBlocks(core, blocks) {
-  return core.waitForStableCollection({
+  const result = await core.waitForStableCollection({
     wait: () => waitForVirtualRender(80),
     collect: () => core.collectRenderedBlocks(document, blocks),
   });
+  await core.cacheRenderedBlobImages({
+    documentRef: document,
+    collection: blocks,
+    cache: imageBlobCache,
+    readImage: readImageBlob,
+  });
+  return result;
 }
 
 function waitForVirtualRender(delay = 90) {
@@ -79,8 +88,17 @@ function waitForVirtualRender(delay = 90) {
   });
 }
 
-async function fetchImage(rawUrl) {
+async function fetchImage(rawUrl, cacheId) {
   try {
+    const cached = cacheId ? imageBlobCache.get(cacheId) : null;
+    if (cached?.blob) {
+      return {
+        ok: true,
+        dataUrl: await blobToDataUrl(cached.blob),
+        mimeType: cached.mimeType || cached.blob.type,
+      };
+    }
+
     const core = await corePromise;
     const url = core.resolveFetchableImageUrl(rawUrl, location.href);
     if (url.protocol === "data:") {
@@ -96,6 +114,15 @@ async function fetchImage(rawUrl) {
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "图片读取失败" };
   }
+}
+
+async function readImageBlob(rawUrl) {
+  const response = await fetch(rawUrl, { credentials: "include", cache: "no-store" });
+  if (!response.ok) throw new Error(`图片请求失败（HTTP ${response.status}）`);
+  const blob = await response.blob();
+  if (!blob.type.startsWith("image/")) throw new Error("返回内容不是图片");
+  if (blob.size > 25 * 1024 * 1024) throw new Error("单张图片超过 25 MB 限制");
+  return { blob, mimeType: blob.type };
 }
 
 function blobToDataUrl(blob) {

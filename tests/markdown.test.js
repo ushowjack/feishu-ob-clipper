@@ -70,6 +70,17 @@ test("输出表格与图片占位", () => {
   assert.match(result.markdown, /@@FEISHU_IMAGE_1@@/);
 });
 
+test("把页面即时缓存标识传入图片下载清单", () => {
+  const root = element("div", {}, [
+    element("img", {
+      src: "https://internal-api-drive-stream.feishu.cn/image",
+      "data-feishu-cache-id": "record-1:0",
+    }),
+  ]);
+  const result = convertArticle(root, options);
+  assert.equal(result.images[0].cacheId, "record-1:0");
+});
+
 test("移除飞书正文中的零宽格式字符", () => {
   const root = element("div", {}, [
     element("h2", {}, [text("五，小白如何快速上手\u200B")]),

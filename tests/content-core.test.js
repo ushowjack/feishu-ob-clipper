@@ -4,12 +4,14 @@ import assert from "node:assert/strict";
 import {
   absolutizeCloneUrls,
   blockTypeToSemanticTag,
+  cacheRenderedBlobImages,
   chooseArticleCandidate,
   cleanArticleClone,
   collectRenderedBlocks,
   collectVirtualizedBlocks,
   resolveFetchableImageUrl,
   scoreArticleCandidate,
+  stabilizeFeishuImageUrls,
   waitForStableCollection,
 } from "../src/content-core.js";
 import { element, text } from "./support/fake-dom.js";
@@ -84,6 +86,59 @@ test("允许读取飞书页面生成的 blob 图片地址", () => {
     () => resolveFetchableImageUrl("javascript:alert(1)", "https://a.feishu.cn/wiki/token"),
     /不支持的图片地址/,
   );
+});
+
+test("把飞书 blob 图片替换成基于 token 的稳定下载地址", () => {
+  const attributes = new Map([["src", "blob:https://a.feishu.cn/temporary"]]);
+  const image = {
+    getAttribute: (name) => attributes.get(name) ?? null,
+    setAttribute: (name, value) => attributes.set(name, String(value)),
+  };
+  const block = { getAttribute: (name) => name === "data-record-id" ? "record/1" : null };
+  const holder = {
+    getAttribute: (name) => name === "image-token" ? "token/1" : null,
+    querySelector: (selector) => selector === "img" ? image : null,
+    closest: (selector) => selector === "[data-record-id]" ? block : null,
+  };
+  const root = {
+    querySelectorAll: (selector) => selector === "[image-token]" ? [holder] : [],
+  };
+
+  stabilizeFeishuImageUrls(root);
+
+  const stable = new URL(image.getAttribute("src"));
+  assert.equal(stable.protocol, "https:");
+  assert.equal(stable.hostname, "internal-api-drive-stream.feishu.cn");
+  assert.match(stable.pathname, /\/cover\/token%2F1\/$/);
+  assert.equal(stable.searchParams.get("mount_node_token"), "record/1");
+});
+
+test("图片仍在当前屏幕时立即缓存 blob 数据", async () => {
+  const cloneAttributes = new Map();
+  const cloneImage = { setAttribute: (name, value) => cloneAttributes.set(name, String(value)) };
+  const liveImage = { getAttribute: (name) => name === "src" ? "blob:https://a.feishu.cn/current" : null };
+  const liveBlock = {
+    getAttribute: (name) => name === "data-record-id" ? "record-1" : null,
+    querySelectorAll: (selector) => selector === "img" ? [liveImage] : [],
+  };
+  const documentRef = {
+    querySelectorAll: () => [liveBlock],
+  };
+  const collection = new Map([["record-1", {
+    clone: { querySelectorAll: (selector) => selector === "img" ? [cloneImage] : [] },
+  }]]);
+  const cache = new Map();
+
+  const captured = await cacheRenderedBlobImages({
+    documentRef,
+    collection,
+    cache,
+    readImage: async (src) => ({ src, bytes: 123 }),
+  });
+
+  assert.equal(captured, 1);
+  assert.equal(cloneAttributes.get("data-feishu-cache-id"), "record-1:0");
+  assert.deepEqual(cache.get("record-1:0"), { src: "blob:https://a.feishu.cn/current", bytes: 123 });
 });
 
 test("清理评论控件时保留飞书图片区块的内容容器", () => {
