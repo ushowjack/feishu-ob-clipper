@@ -472,7 +472,15 @@ function blockCompletenessScore(block) {
     || image.getAttribute?.("data-src")
     || image.getAttribute?.("data-original")
   )).length;
-  return textLength * 2 + images.length * 100 + loadedImages * 5_000;
+  const persistentImages = images.filter((image) => {
+    if (image.getAttribute?.("data-feishu-cache-id")) return true;
+    const source = image.getAttribute?.("src")
+      || image.getAttribute?.("data-src")
+      || image.getAttribute?.("data-original")
+      || "";
+    return Boolean(source) && !String(source).startsWith("blob:");
+  }).length;
+  return textLength * 2 + images.length * 100 + loadedImages * 5_000 + persistentImages * 1_000;
 }
 
 function documentMaxScroll(scrollContainer) {

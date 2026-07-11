@@ -300,6 +300,23 @@ test("同一图片区块在图片地址加载后替换首次采集结果", () =>
   assert.equal(collection.get("record-8").clone.querySelectorAll("img")[0].getAttribute("src"), "https://internal-api-drive-stream.feishu.cn/x");
 });
 
+test("同一图片区块后续出现稳定地址时替换临时 blob 版本", () => {
+  const temporary = feishuBlock("9", "image", [element("img", { src: "blob:https://a.feishu.cn/temporary" })]);
+  const stable = feishuBlock("9", "image", [element("img", { src: "https://internal-api-drive-stream.feishu.cn/stable" })]);
+  let rendered = [temporary];
+  const documentRef = { querySelectorAll: () => rendered };
+  const collection = new Map();
+
+  collectRenderedBlocks(documentRef, collection);
+  rendered = [stable];
+
+  assert.equal(collectRenderedBlocks(documentRef, collection), 1);
+  assert.equal(
+    collection.get("record-9").clone.querySelectorAll("img")[0].getAttribute("src"),
+    "https://internal-api-drive-stream.feishu.cn/stable",
+  );
+});
+
 test("文档高度在滚动中增长时继续采集到新的底部", async () => {
   const scrollContainer = { clientHeight: 1_000, scrollHeight: 2_000, scrollTop: 0 };
   const visited = [];
