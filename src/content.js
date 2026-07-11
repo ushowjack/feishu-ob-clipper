@@ -22,7 +22,7 @@ async function extractArticle() {
     if (!root) {
       return { ok: false, error: "没有识别到已加载的飞书正文，请等待页面加载完成后重试。" };
     }
-    const clone = core.cleanArticleClone(root);
+    const clone = await extractCompleteArticle(core, root);
     core.absolutizeCloneUrls(clone, location.href);
     const textLength = String(clone.textContent ?? "").replace(/\s+/g, "").length;
     if (textLength < 30) {
@@ -39,6 +39,44 @@ async function extractArticle() {
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "读取飞书正文失败。" };
   }
+}
+
+async function extractCompleteArticle(core, root) {
+  if (!root.matches?.(".page-main")) return core.cleanArticleClone(root);
+  const scrollContainer = core.findDocumentScrollContainer(document, root);
+  if (!scrollContainer || scrollContainer.scrollHeight <= scrollContainer.clientHeight + 100) {
+    return core.cleanArticleClone(root);
+  }
+
+  const originalScrollTop = scrollContainer.scrollTop;
+  const blocks = new Map();
+  try {
+    core.collectRenderedBlocks(document, blocks);
+    const maxScroll = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+    let step = Math.max(400, scrollContainer.clientHeight * 0.7);
+    const estimatedSteps = Math.ceil(maxScroll / step);
+    if (estimatedSteps > 120) step = maxScroll / 120;
+
+    for (let position = 0; position < maxScroll; position += step) {
+      scrollContainer.scrollTop = Math.min(position, maxScroll);
+      await waitForVirtualRender();
+      core.collectRenderedBlocks(document, blocks);
+    }
+    scrollContainer.scrollTop = maxScroll;
+    await waitForVirtualRender();
+    core.collectRenderedBlocks(document, blocks);
+  } finally {
+    scrollContainer.scrollTop = originalScrollTop;
+    await waitForVirtualRender(40);
+  }
+
+  return blocks.size ? core.buildArticleFromBlocks(document, blocks) : core.cleanArticleClone(root);
+}
+
+function waitForVirtualRender(delay = 90) {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, delay)));
+  });
 }
 
 async function fetchImage(rawUrl) {

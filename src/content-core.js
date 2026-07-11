@@ -1,5 +1,7 @@
 const BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,pre,blockquote,tr,img";
 const ARTICLE_SELECTORS = [
+  ".page-main",
+  ".page-main-item.editor",
   "[data-docx-content]",
   ".docx-editor",
   ".docx-editor-container",
@@ -44,7 +46,8 @@ export function scoreArticleCandidate(element) {
   const blockCount = Number(element.querySelectorAll?.(BLOCK_SELECTOR)?.length ?? 0);
   const semantic = `${element.className ?? ""} ${element.getAttribute?.("data-testid") ?? ""}`;
   const editorBonus = /ProseMirror|docx|suite-editor|document-content/i.test(semantic) ? 500 : 0;
-  return Math.min(text.length, 50_000) + Math.min(blockCount, 2_000) * 24 + editorBonus;
+  const pageMainBonus = /(?:^|\s)page-main(?:\s|$)/.test(semantic) ? 8_000 : 0;
+  return Math.min(text.length, 50_000) + Math.min(blockCount, 2_000) * 24 + editorBonus + pageMainBonus;
 }
 
 export function chooseArticleCandidate(candidates) {
@@ -101,6 +104,106 @@ export function absolutizeCloneUrls(clone, baseUrl) {
   return clone;
 }
 
+export function findDocumentScrollContainer(documentRef, articleRoot) {
+  const closest = articleRoot?.closest?.(".bear-web-x-container");
+  if (closest) return closest;
+  return documentRef.querySelector(".bear-web-x-container, [class*='docx'][class*='scroll']");
+}
+
+export function collectRenderedBlocks(documentRef, collection) {
+  const blocks = documentRef.querySelectorAll(".page-main .block[data-block-id][data-record-id]");
+  let added = 0;
+  for (const block of Array.from(blocks)) {
+    const type = block.getAttribute("data-block-type") || "unknown";
+    if (type === "page") continue;
+    const recordId = block.getAttribute("data-record-id");
+    if (!recordId || collection.has(recordId)) continue;
+    collection.set(recordId, {
+      recordId,
+      order: Number(block.getAttribute("data-block-id")) || Number.MAX_SAFE_INTEGER,
+      type,
+      clone: cleanArticleClone(block),
+    });
+    added += 1;
+  }
+  return added;
+}
+
+export function buildArticleFromBlocks(documentRef, collection) {
+  const container = documentRef.createElement("div");
+  const records = Array.from(collection.values()).sort((left, right) => left.order - right.order);
+  let activeList = null;
+  let activeListTag = "";
+
+  for (const record of records) {
+    const semanticTag = blockTypeToSemanticTag(record.type);
+    if (semanticTag === "ol" || semanticTag === "ul") {
+      if (!activeList || activeListTag !== semanticTag) {
+        activeList = documentRef.createElement(semanticTag);
+        activeListTag = semanticTag;
+        container.append(activeList);
+      }
+      const item = documentRef.createElement("li");
+      copyBlockContent(record.clone, item);
+      if (record.type === "todo") {
+        const input = documentRef.createElement("input");
+        input.setAttribute("type", "checkbox");
+        if (/checked|done|completed/.test(String(record.clone.className))) input.setAttribute("checked", "");
+        item.prepend(input);
+      }
+      activeList.append(item);
+      continue;
+    }
+
+    activeList = null;
+    activeListTag = "";
+    if (semanticTag === "hr") {
+      container.append(documentRef.createElement("hr"));
+      continue;
+    }
+    if (semanticTag === "pre") {
+      const pre = documentRef.createElement("pre");
+      const code = documentRef.createElement("code");
+      code.textContent = blockContentSource(record.clone).textContent || "";
+      pre.append(code);
+      container.append(pre);
+      continue;
+    }
+    if (semanticTag === "div") {
+      container.append(record.clone);
+      continue;
+    }
+
+    const wrapper = documentRef.createElement(semanticTag);
+    copyBlockContent(record.clone, wrapper);
+    container.append(wrapper);
+  }
+  return container;
+}
+
+export function blockTypeToSemanticTag(type) {
+  const normalized = String(type ?? "").toLowerCase();
+  if (/^heading[1-6]$/.test(normalized)) return `h${normalized.at(-1)}`;
+  if (["text", "paragraph", "callout"].includes(normalized)) return "p";
+  if (["ordered", "ordered_list", "numbered"].includes(normalized)) return "ol";
+  if (["bullet", "bullet_list", "todo", "task"].includes(normalized)) return "ul";
+  if (["quote", "blockquote"].includes(normalized)) return "blockquote";
+  if (["code", "code_block"].includes(normalized)) return "pre";
+  if (["divider", "horizontal_rule"].includes(normalized)) return "hr";
+  return "div";
+}
+
+function copyBlockContent(block, target) {
+  const source = blockContentSource(block);
+  for (const child of Array.from(source.childNodes ?? [])) target.append(child.cloneNode(true));
+}
+
+function blockContentSource(block) {
+  return block.querySelector?.(".ace-line")
+    || block.querySelector?.("[data-slate-editor='true']")
+    || block;
+}
+
 export function extractDocumentTitle(documentRef) {
   const inputSelectors = [
     "input[data-testid*='title']",
@@ -117,6 +220,7 @@ export function extractDocumentTitle(documentRef) {
     "[data-testid*='title']",
     ".wiki-title",
     ".docx-title",
+    ".page-main h1",
     "h1",
   ];
   for (const selector of textSelectors) {

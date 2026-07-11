@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   absolutizeCloneUrls,
+  blockTypeToSemanticTag,
   chooseArticleCandidate,
   scoreArticleCandidate,
 } from "../src/content-core.js";
@@ -63,4 +64,20 @@ test("把正文中的相对链接和懒加载图片转换为绝对地址", () =>
   absolutizeCloneUrls(clone, "https://a.feishu.cn/wiki/token");
   assert.equal(link.getAttribute("href"), "https://a.feishu.cn/docx/abc");
   assert.equal(image.getAttribute("src"), "https://a.feishu.cn/wiki/image/1.png");
+});
+
+test("当前飞书 page-main 正文优先于外围应用壳", () => {
+  const article = candidate({ text: "正文".repeat(500), blocks: 30, className: "page-main docx-width-mode-standard" });
+  const shell = candidate({ text: "正文与目录评论".repeat(500), blocks: 100, className: "app suite-docx" });
+  assert.equal(chooseArticleCandidate([shell, article]), article);
+});
+
+test("把飞书块类型映射为语义标签", () => {
+  assert.equal(blockTypeToSemanticTag("heading1"), "h1");
+  assert.equal(blockTypeToSemanticTag("heading3"), "h3");
+  assert.equal(blockTypeToSemanticTag("text"), "p");
+  assert.equal(blockTypeToSemanticTag("ordered"), "ol");
+  assert.equal(blockTypeToSemanticTag("bullet"), "ul");
+  assert.equal(blockTypeToSemanticTag("divider"), "hr");
+  assert.equal(blockTypeToSemanticTag("unknown"), "div");
 });
