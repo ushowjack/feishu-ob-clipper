@@ -1,10 +1,8 @@
-import { escapeYamlString } from "./path-utils.js";
-
 const TEXT_NODE = 3;
 const ELEMENT_NODE = 1;
 
 export function convertArticle(root, options) {
-  const title = String(options?.title ?? "未命名飞书文档").replace(/\p{Cf}/gu, "").trim() || "未命名飞书文档";
+  const title = String(options?.title ?? "未命名笔记").replace(/\p{Cf}/gu, "").trim() || "未命名笔记";
   const images = [];
   const context = { images };
   const body = renderChildren(root, context, { block: true })
@@ -13,15 +11,9 @@ export function convertArticle(root, options) {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  const frontmatter = [
-    "---",
-    `title: ${escapeYamlString(title)}`,
-    `source: ${escapeYamlString(options?.sourceUrl ?? "")}`,
-    `captured_at: ${escapeYamlString(options?.capturedAt ?? new Date().toISOString())}`,
-    "source_type: feishu",
-    "---",
-  ].join("\n");
-  const markdown = `${frontmatter}\n\n# ${escapeInline(title)}${body ? `\n\n${body}` : ""}\n`;
+  const frontmatter = String(options?.frontmatter ?? "").trim();
+  const headingAndBody = `# ${escapeInline(title)}${body ? `\n\n${body}` : ""}\n`;
+  const markdown = frontmatter ? `${frontmatter}\n\n${headingAndBody}` : headingAndBody;
   return { markdown, images };
 }
 

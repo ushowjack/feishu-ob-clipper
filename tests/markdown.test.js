@@ -6,14 +6,21 @@ import { element, text } from "./support/fake-dom.js";
 
 const options = {
   title: '测试 "文档"',
-  sourceUrl: "https://x.feishu.cn/wiki/a",
-  capturedAt: "2026-07-11T12:00:00+08:00",
+  frontmatter: [
+    "---",
+    'title: "测试 \\\"文档\\\""',
+    'source: "https://x.feishu.cn/wiki/a"',
+    "tags:",
+    '  - "clippings"',
+    "---",
+  ].join("\n"),
 };
 
-test("生成 YAML 元数据和文档标题", () => {
+test("组合外部 YAML 元数据和文档标题", () => {
   const result = convertArticle(element("div", {}, [element("p", {}, [text("正文")])]), options);
-  assert.match(result.markdown, /^---\ntitle: "测试 \\"文档\\""\nsource: "https:\/\/x.feishu.cn\/wiki\/a"\ncaptured_at: "2026-07-11T12:00:00\+08:00"\nsource_type: feishu\n---/);
+  assert.ok(result.markdown.startsWith(`${options.frontmatter}\n\n`));
   assert.match(result.markdown, /# 测试 "文档"\n\n正文/);
+  assert.doesNotMatch(result.markdown, /captured_at|source_type/);
 });
 
 test("转换常见块级与行内格式", () => {
