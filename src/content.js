@@ -10,6 +10,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     fetchImage(message.url, message.cacheId).then(sendResponse);
     return true;
   }
+  if (message?.type === "CLEAR_IMAGE_CACHE") {
+    imageBlobCache.clear();
+    sendResponse({ ok: true });
+    return false;
+  }
   return false;
 });
 
@@ -90,16 +95,17 @@ function waitForVirtualRender(delay = 90) {
 
 async function fetchImage(rawUrl, cacheId) {
   try {
-    const cached = cacheId ? imageBlobCache.get(cacheId) : null;
-    if (cached?.blob) {
+    const core = await corePromise;
+    const cachedResponse = await core.consumeCachedImage(imageBlobCache, cacheId, async (cached) => {
+      if (!cached?.blob) return null;
       return {
         ok: true,
         dataUrl: await blobToDataUrl(cached.blob),
         mimeType: cached.mimeType || cached.blob.type,
       };
-    }
+    });
+    if (cachedResponse) return cachedResponse;
 
-    const core = await corePromise;
     const url = core.resolveFetchableImageUrl(rawUrl, location.href);
     if (url.protocol === "data:") {
       return { ok: true, dataUrl: url.href, mimeType: url.href.slice(5, url.href.indexOf(";")) || "image/png" };

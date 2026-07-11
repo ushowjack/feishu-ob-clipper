@@ -152,6 +152,7 @@ async function saveCurrentArticle() {
       showStatus(message, "error");
     }
   } finally {
+    await sendToCurrentTab({ type: "CLEAR_IMAGE_CACHE" }).catch(() => {});
     setBusy(false);
   }
 }

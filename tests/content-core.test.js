@@ -12,6 +12,7 @@ import {
   resolveFetchableImageUrl,
   scoreArticleCandidate,
   stabilizeFeishuImageUrls,
+  consumeCachedImage,
   waitForStableCollection,
 } from "../src/content-core.js";
 import { element, text } from "./support/fake-dom.js";
@@ -139,6 +140,22 @@ test("图片仍在当前屏幕时立即缓存 blob 数据", async () => {
   assert.equal(captured, 1);
   assert.equal(cloneAttributes.get("data-feishu-cache-id"), "record-1:0");
   assert.deepEqual(cache.get("record-1:0"), { src: "blob:https://a.feishu.cn/current", bytes: 123 });
+});
+
+test("图片传输完成后立即删除对应缓存", async () => {
+  const cache = new Map([["record-1:0", { bytes: 123 }]]);
+  const result = await consumeCachedImage(cache, "record-1:0", async (cached) => cached.bytes);
+  assert.equal(result, 123);
+  assert.equal(cache.has("record-1:0"), false);
+});
+
+test("图片传输失败时也删除对应缓存", async () => {
+  const cache = new Map([["record-1:0", { bytes: 123 }]]);
+  await assert.rejects(
+    () => consumeCachedImage(cache, "record-1:0", async () => { throw new Error("编码失败"); }),
+    /编码失败/,
+  );
+  assert.equal(cache.has("record-1:0"), false);
 });
 
 test("清理评论控件时保留飞书图片区块的内容容器", () => {

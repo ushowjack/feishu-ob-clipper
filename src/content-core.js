@@ -238,6 +238,16 @@ export async function cacheRenderedBlobImages({
   return captured;
 }
 
+export async function consumeCachedImage(cache, cacheId, consume) {
+  if (!cacheId || !cache.has(cacheId)) return null;
+  const cached = cache.get(cacheId);
+  try {
+    return await consume(cached);
+  } finally {
+    cache.delete(cacheId);
+  }
+}
+
 export async function waitForStableCollection({
   wait,
   collect,
