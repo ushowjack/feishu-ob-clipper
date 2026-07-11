@@ -256,7 +256,22 @@ test("把飞书块类型映射为语义标签", () => {
   assert.equal(blockTypeToSemanticTag("bullet"), "ul");
   assert.equal(blockTypeToSemanticTag("divider"), "hr");
   assert.equal(blockTypeToSemanticTag("image"), "p");
+  assert.equal(blockTypeToSemanticTag("quote_container"), "blockquote");
   assert.equal(blockTypeToSemanticTag("unknown"), "div");
+});
+
+test("外层内容容器已包含子块时不再重复采集嵌套块", () => {
+  const container = feishuBlock("376", "quote_container", [text("重要提示")]);
+  const nested = feishuBlock("393", "text", [text("重要提示")]);
+  nested.parentElement = {
+    closest: (selector) => selector.includes(".block") ? container : null,
+  };
+  const documentRef = { querySelectorAll: () => [container, nested] };
+  const collection = new Map();
+
+  assert.equal(collectRenderedBlocks(documentRef, collection), 1);
+  assert.equal(collection.has("record-376"), true);
+  assert.equal(collection.has("record-393"), false);
 });
 
 test("同一区块后续加载完整时替换首次采集的空内容", () => {

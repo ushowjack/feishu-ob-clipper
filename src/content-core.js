@@ -151,6 +151,9 @@ export function collectRenderedBlocks(documentRef, collection) {
   for (const block of Array.from(blocks)) {
     const type = block.getAttribute("data-block-type") || "unknown";
     if (type === "page") continue;
+    const parentBlock = block.parentElement?.closest?.(".block[data-block-id][data-record-id]");
+    const parentType = parentBlock?.getAttribute?.("data-block-type") || "";
+    if (parentBlock && parentType !== "page") continue;
     const recordId = block.getAttribute("data-record-id");
     if (!recordId) continue;
     const candidate = {
@@ -327,7 +330,7 @@ export function blockTypeToSemanticTag(type) {
   if (["text", "paragraph", "callout"].includes(normalized)) return "p";
   if (["ordered", "ordered_list", "numbered"].includes(normalized)) return "ol";
   if (["bullet", "bullet_list", "todo", "task"].includes(normalized)) return "ul";
-  if (["quote", "blockquote"].includes(normalized)) return "blockquote";
+  if (["quote", "blockquote", "quote_container"].includes(normalized)) return "blockquote";
   if (["code", "code_block"].includes(normalized)) return "pre";
   if (["divider", "horizontal_rule"].includes(normalized)) return "hr";
   if (normalized === "image") return "p";
