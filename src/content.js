@@ -81,11 +81,11 @@ function waitForVirtualRender(delay = 90) {
 
 async function fetchImage(rawUrl) {
   try {
-    const url = new URL(String(rawUrl), location.href);
+    const core = await corePromise;
+    const url = core.resolveFetchableImageUrl(rawUrl, location.href);
     if (url.protocol === "data:") {
       return { ok: true, dataUrl: url.href, mimeType: url.href.slice(5, url.href.indexOf(";")) || "image/png" };
     }
-    if (url.protocol !== "https:") throw new Error("只允许读取 HTTPS 图片");
 
     const response = await fetch(url.href, { credentials: "include", cache: "no-store" });
     if (!response.ok) throw new Error(`图片请求失败（HTTP ${response.status}）`);

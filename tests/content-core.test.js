@@ -8,6 +8,7 @@ import {
   cleanArticleClone,
   collectRenderedBlocks,
   collectVirtualizedBlocks,
+  resolveFetchableImageUrl,
   scoreArticleCandidate,
   waitForStableCollection,
 } from "../src/content-core.js";
@@ -70,6 +71,21 @@ test("把正文中的相对链接和懒加载图片转换为绝对地址", () =>
   assert.equal(image.getAttribute("src"), "https://a.feishu.cn/wiki/image/1.png");
 });
 
+test("允许读取飞书页面生成的 blob 图片地址", () => {
+  assert.equal(
+    resolveFetchableImageUrl(
+      "blob:https://a.feishu.cn/7b7dd13f-707a-4a91-a5cb-7b4490b0e25f",
+      "https://a.feishu.cn/wiki/token",
+    ).protocol,
+    "blob:",
+  );
+  assert.equal(resolveFetchableImageUrl("/image/1.png", "https://a.feishu.cn/wiki/token").protocol, "https:");
+  assert.throws(
+    () => resolveFetchableImageUrl("javascript:alert(1)", "https://a.feishu.cn/wiki/token"),
+    /不支持的图片地址/,
+  );
+});
+
 test("清理评论控件时保留飞书图片区块的内容容器", () => {
   let removed = false;
   const imageWrapper = {
@@ -102,6 +118,18 @@ test("保留带飞书批注标记的正文文字", () => {
   assert.equal(removed, false);
 });
 
+test("清除飞书图片区块中的打印占位提示", () => {
+  let removed = false;
+  const placeholder = { remove: () => { removed = true; } };
+  const clone = {
+    querySelectorAll: (selector) => selector.includes(".gpf-biz-action-manager-forbidden-placeholder")
+      ? [placeholder]
+      : [],
+  };
+  cleanArticleClone({ cloneNode: () => clone });
+  assert.equal(removed, true);
+});
+
 test("当前飞书 page-main 正文优先于外围应用壳", () => {
   const article = candidate({ text: "正文".repeat(500), blocks: 30, className: "page-main docx-width-mode-standard" });
   const shell = candidate({ text: "正文与目录评论".repeat(500), blocks: 100, className: "app suite-docx" });
@@ -115,6 +143,7 @@ test("把飞书块类型映射为语义标签", () => {
   assert.equal(blockTypeToSemanticTag("ordered"), "ol");
   assert.equal(blockTypeToSemanticTag("bullet"), "ul");
   assert.equal(blockTypeToSemanticTag("divider"), "hr");
+  assert.equal(blockTypeToSemanticTag("image"), "p");
   assert.equal(blockTypeToSemanticTag("unknown"), "div");
 });
 

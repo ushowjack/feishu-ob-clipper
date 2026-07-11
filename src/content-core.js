@@ -24,6 +24,7 @@ const REMOVE_SELECTORS = [
   "[aria-hidden='true']",
   "[data-testid*='toolbar']",
   "[data-testid*='comment']",
+  ".gpf-biz-action-manager-forbidden-placeholder",
   "[class*='toolbar']",
   "[class*='catalog']",
   "[class*='sidebar']",
@@ -101,6 +102,14 @@ export function absolutizeCloneUrls(clone, baseUrl) {
     }
   });
   return clone;
+}
+
+export function resolveFetchableImageUrl(rawUrl, baseUrl) {
+  const url = new URL(String(rawUrl), baseUrl);
+  if (!["data:", "https:", "blob:"].includes(url.protocol)) {
+    throw new Error("不支持的图片地址");
+  }
+  return url;
 }
 
 export function findDocumentScrollContainer(documentRef, articleRoot) {
@@ -250,6 +259,7 @@ export function blockTypeToSemanticTag(type) {
   if (["quote", "blockquote"].includes(normalized)) return "blockquote";
   if (["code", "code_block"].includes(normalized)) return "pre";
   if (["divider", "horizontal_rule"].includes(normalized)) return "hr";
+  if (normalized === "image") return "p";
   return "div";
 }
 
