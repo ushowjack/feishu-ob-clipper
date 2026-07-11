@@ -81,6 +81,17 @@ test("移除飞书正文中的零宽格式字符", () => {
   assert.match(result.markdown, /正文内容/);
 });
 
+test("忽略只包含空白或零宽字符的标题", () => {
+  const root = element("div", {}, [
+    element("h1", {}, [text("\u200B")]),
+    element("h5", {}, [text("   ")]),
+    element("p", {}, [text("保留正文")]),
+  ]);
+  const result = convertArticle(root, options);
+  assert.doesNotMatch(result.markdown, /^#{2,6}\s*$/m);
+  assert.match(result.markdown, /保留正文/);
+});
+
 test("转义 Markdown 文本并安全处理缺失链接", () => {
   const root = element("div", {}, [
     element("p", {}, [text("*星号* [括号] #标签")]),

@@ -5,6 +5,7 @@ import {
   absolutizeCloneUrls,
   blockTypeToSemanticTag,
   chooseArticleCandidate,
+  cleanArticleClone,
   collectRenderedBlocks,
   collectVirtualizedBlocks,
   scoreArticleCandidate,
@@ -67,6 +68,38 @@ test("把正文中的相对链接和懒加载图片转换为绝对地址", () =>
   absolutizeCloneUrls(clone, "https://a.feishu.cn/wiki/token");
   assert.equal(link.getAttribute("href"), "https://a.feishu.cn/docx/abc");
   assert.equal(image.getAttribute("src"), "https://a.feishu.cn/wiki/image/1.png");
+});
+
+test("清理评论控件时保留飞书图片区块的内容容器", () => {
+  let removed = false;
+  const imageWrapper = {
+    className: "block-comment image-block-comment",
+    querySelector: (selector) => selector === "img" ? {} : null,
+    remove: () => { removed = true; },
+  };
+  const clone = {
+    querySelectorAll: (selector) => selector.includes("[class*='comment']") ? [imageWrapper] : [],
+  };
+  const articleRoot = { cloneNode: () => clone };
+
+  assert.equal(cleanArticleClone(articleRoot), clone);
+  assert.equal(removed, false);
+});
+
+test("保留带飞书批注标记的正文文字", () => {
+  let removed = false;
+  const commentedText = {
+    className: "author text-comment comment-id-123",
+    querySelector: () => null,
+    remove: () => { removed = true; },
+  };
+  const clone = {
+    querySelectorAll: (selector) => selector.includes("[class*='comment']") ? [commentedText] : [],
+  };
+  const articleRoot = { cloneNode: () => clone };
+
+  cleanArticleClone(articleRoot);
+  assert.equal(removed, false);
 });
 
 test("当前飞书 page-main 正文优先于外围应用壳", () => {

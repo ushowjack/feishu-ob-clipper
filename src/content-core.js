@@ -25,7 +25,6 @@ const REMOVE_SELECTORS = [
   "[data-testid*='toolbar']",
   "[data-testid*='comment']",
   "[class*='toolbar']",
-  "[class*='comment']",
   "[class*='catalog']",
   "[class*='sidebar']",
   "[style*='display: none']",

@@ -37,7 +37,8 @@ function renderNode(node, context, state = {}) {
 
   if (/^h[1-6]$/.test(tag)) {
     const level = Math.min(Number(tag[1]) + 1, 6);
-    return `${"#".repeat(level)} ${children().trim()}\n\n`;
+    const content = children().replace(/\p{Cf}/gu, "").trim();
+    return content ? `${"#".repeat(level)} ${content}\n\n` : "";
   }
 
   switch (tag) {
