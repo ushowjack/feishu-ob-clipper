@@ -30,3 +30,7 @@ export function localIsoTimestamp(date = new Date(), timezoneOffset = date.getTi
   const minutes = String(absolute % 60).padStart(2, "0");
   return `${body}${sign}${hours}:${minutes}`;
 }
+
+export function shouldPreserveStatus(className) {
+  return /(?:^|\s)(?:error|warning|success)(?:\s|$)/.test(String(className ?? ""));
+}

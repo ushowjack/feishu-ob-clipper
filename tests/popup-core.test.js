@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   dataUrlToBlob,
   localIsoTimestamp,
+  shouldPreserveStatus,
   validateFeishuUrl,
 } from "../src/popup-core.js";
 
@@ -35,4 +36,11 @@ test("拒绝无效 data URL", () => {
 test("生成包含本地时区偏移的 ISO 时间", () => {
   const value = localIsoTimestamp(new Date("2026-07-11T04:00:00.000Z"), -480);
   assert.equal(value, "2026-07-11T12:00:00+08:00");
+});
+
+test("界面刷新时保留错误、警告和成功状态", () => {
+  assert.equal(shouldPreserveStatus("status error"), true);
+  assert.equal(shouldPreserveStatus("status warning"), true);
+  assert.equal(shouldPreserveStatus("status success"), true);
+  assert.equal(shouldPreserveStatus("status"), false);
 });

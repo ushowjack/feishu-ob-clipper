@@ -1,6 +1,11 @@
 import { loadDirectoryHandle, saveDirectoryHandle } from "./handle-store.js";
 import { convertArticle } from "./markdown.js";
-import { dataUrlToBlob, localIsoTimestamp, validateFeishuUrl } from "./popup-core.js";
+import {
+  dataUrlToBlob,
+  localIsoTimestamp,
+  shouldPreserveStatus,
+  validateFeishuUrl,
+} from "./popup-core.js";
 import { parseRelativeDirectory } from "./path-utils.js";
 import {
   queryVaultPermission,
@@ -185,7 +190,7 @@ function updateUi() {
 
   if (!state.busy && state.vaultHandle && state.permission === "granted" && !supported) {
     showStatus("当前不是受支持的飞书 Wiki/文档页面。", "error");
-  } else if (!state.busy && state.vaultHandle && state.permission === "granted" && supported && !elements.status.classList.contains("success")) {
+  } else if (!state.busy && state.vaultHandle && state.permission === "granted" && supported && !shouldPreserveStatus(elements.status.className)) {
     showStatus("准备就绪，点击即可保存当前文档。");
   }
 }
