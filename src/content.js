@@ -51,26 +51,26 @@ async function extractCompleteArticle(core, root) {
   const originalScrollTop = scrollContainer.scrollTop;
   const blocks = new Map();
   try {
-    core.collectRenderedBlocks(document, blocks);
-    const maxScroll = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
-    let step = Math.max(400, scrollContainer.clientHeight * 0.7);
-    const estimatedSteps = Math.ceil(maxScroll / step);
-    if (estimatedSteps > 120) step = maxScroll / 120;
-
-    for (let position = 0; position < maxScroll; position += step) {
-      scrollContainer.scrollTop = Math.min(position, maxScroll);
-      await waitForVirtualRender();
-      core.collectRenderedBlocks(document, blocks);
+    const result = await core.collectVirtualizedBlocks({
+      scrollContainer,
+      renderAtCurrentPosition: () => waitForStableRenderedBlocks(core, blocks),
+    });
+    if (!result.complete) {
+      throw new Error("飞书正文仍在加载，未能确认已采集到文档末尾，本次未写入文件。请稍后重试。");
     }
-    scrollContainer.scrollTop = maxScroll;
-    await waitForVirtualRender();
-    core.collectRenderedBlocks(document, blocks);
   } finally {
     scrollContainer.scrollTop = originalScrollTop;
     await waitForVirtualRender(40);
   }
 
   return blocks.size ? core.buildArticleFromBlocks(document, blocks) : core.cleanArticleClone(root);
+}
+
+async function waitForStableRenderedBlocks(core, blocks) {
+  return core.waitForStableCollection({
+    wait: () => waitForVirtualRender(80),
+    collect: () => core.collectRenderedBlocks(document, blocks),
+  });
 }
 
 function waitForVirtualRender(delay = 90) {

@@ -70,6 +70,17 @@ test("输出表格与图片占位", () => {
   assert.match(result.markdown, /@@FEISHU_IMAGE_1@@/);
 });
 
+test("移除飞书正文中的零宽格式字符", () => {
+  const root = element("div", {}, [
+    element("h2", {}, [text("五，小白如何快速上手\u200B")]),
+    element("p", {}, [text("正文\u200E内容\uFEFF")]),
+  ]);
+  const result = convertArticle(root, { ...options, title: "测试标题\u200B" });
+  assert.doesNotMatch(result.markdown, /\p{Cf}/u);
+  assert.match(result.markdown, /小白如何快速上手/);
+  assert.match(result.markdown, /正文内容/);
+});
+
 test("转义 Markdown 文本并安全处理缺失链接", () => {
   const root = element("div", {}, [
     element("p", {}, [text("*星号* [括号] #标签")]),

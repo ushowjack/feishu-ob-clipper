@@ -5,9 +5,12 @@ import {
   absolutizeCloneUrls,
   blockTypeToSemanticTag,
   chooseArticleCandidate,
+  collectRenderedBlocks,
+  collectVirtualizedBlocks,
   scoreArticleCandidate,
+  waitForStableCollection,
 } from "../src/content-core.js";
-import { element } from "./support/fake-dom.js";
+import { element, text } from "./support/fake-dom.js";
 
 function candidate({ text, blocks = 0, hidden = false, className = "" }) {
   return {
@@ -81,3 +84,86 @@ test("把飞书块类型映射为语义标签", () => {
   assert.equal(blockTypeToSemanticTag("divider"), "hr");
   assert.equal(blockTypeToSemanticTag("unknown"), "div");
 });
+
+test("同一区块后续加载完整时替换首次采集的空内容", () => {
+  const empty = feishuBlock("7", "heading2", [text("\u200B")]);
+  const complete = feishuBlock("7", "heading2", [text("五，小白如何快速上手（SOP）")]);
+  let rendered = [empty];
+  const documentRef = { querySelectorAll: () => rendered };
+  const collection = new Map();
+
+  assert.equal(collectRenderedBlocks(documentRef, collection), 1);
+  rendered = [complete];
+  assert.equal(collectRenderedBlocks(documentRef, collection), 1);
+  assert.match(collection.get("record-7").clone.textContent, /小白如何快速上手/);
+});
+
+test("同一图片区块在图片地址加载后替换首次采集结果", () => {
+  const pending = feishuBlock("8", "image", [element("img")]);
+  const loaded = feishuBlock("8", "image", [element("img", { src: "https://internal-api-drive-stream.feishu.cn/x" })]);
+  let rendered = [pending];
+  const documentRef = { querySelectorAll: () => rendered };
+  const collection = new Map();
+
+  collectRenderedBlocks(documentRef, collection);
+  rendered = [loaded];
+  assert.equal(collectRenderedBlocks(documentRef, collection), 1);
+  assert.equal(collection.get("record-8").clone.querySelectorAll("img")[0].getAttribute("src"), "https://internal-api-drive-stream.feishu.cn/x");
+});
+
+test("文档高度在滚动中增长时继续采集到新的底部", async () => {
+  const scrollContainer = { clientHeight: 1_000, scrollHeight: 2_000, scrollTop: 0 };
+  const visited = [];
+  let size = 0;
+
+  const result = await collectVirtualizedBlocks({
+    scrollContainer,
+    renderAtCurrentPosition: async () => {
+      visited.push(scrollContainer.scrollTop);
+      if (scrollContainer.scrollTop >= 700 && scrollContainer.scrollHeight === 2_000) {
+        scrollContainer.scrollHeight = 3_500;
+      }
+      size += 1;
+      return { changes: 0, size };
+    },
+  });
+
+  assert.equal(result.complete, true);
+  assert.ok(visited.some((position) => position >= 2_500));
+});
+
+test("虚拟文档始终无法稳定时返回未完成", async () => {
+  const scrollContainer = { clientHeight: 1_000, scrollHeight: 2_000, scrollTop: 0 };
+  const result = await collectVirtualizedBlocks({
+    scrollContainer,
+    maxPasses: 3,
+    renderAtCurrentPosition: async () => {
+      scrollContainer.scrollHeight += 500;
+      return { changes: 1, size: 1 };
+    },
+  });
+  assert.equal(result.complete, false);
+});
+
+test("至少等待若干轮再判定区块稳定，捕获稍晚加载的图片", async () => {
+  const changes = [0, 0, 1, 0, 0];
+  let calls = 0;
+  const result = await waitForStableCollection({
+    wait: async () => {},
+    collect: () => changes[calls++] ?? 0,
+    minPasses: 4,
+    maxPasses: 10,
+  });
+  assert.equal(result.changes, 1);
+  assert.equal(calls, 5);
+});
+
+function feishuBlock(id, type, children) {
+  const block = element("div", {
+    "data-block-id": id,
+    "data-record-id": `record-${id}`,
+    "data-block-type": type,
+  }, children);
+  block.cloneNode = () => block;
+  return block;
+}

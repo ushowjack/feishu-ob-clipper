@@ -112,21 +112,82 @@ export function findDocumentScrollContainer(documentRef, articleRoot) {
 
 export function collectRenderedBlocks(documentRef, collection) {
   const blocks = documentRef.querySelectorAll(".page-main .block[data-block-id][data-record-id]");
-  let added = 0;
+  let changed = 0;
   for (const block of Array.from(blocks)) {
     const type = block.getAttribute("data-block-type") || "unknown";
     if (type === "page") continue;
     const recordId = block.getAttribute("data-record-id");
-    if (!recordId || collection.has(recordId)) continue;
-    collection.set(recordId, {
+    if (!recordId) continue;
+    const candidate = {
       recordId,
       order: Number(block.getAttribute("data-block-id")) || Number.MAX_SAFE_INTEGER,
       type,
       clone: cleanArticleClone(block),
-    });
-    added += 1;
+    };
+    const current = collection.get(recordId);
+    if (current && blockCompletenessScore(candidate.clone) <= blockCompletenessScore(current.clone)) continue;
+    collection.set(recordId, candidate);
+    changed += 1;
   }
-  return added;
+  return changed;
+}
+
+export async function collectVirtualizedBlocks({
+  scrollContainer,
+  renderAtCurrentPosition,
+  maxPasses = 240,
+  stableBottomPasses = 2,
+}) {
+  const step = Math.max(400, Number(scrollContainer.clientHeight || 0) * 0.7);
+  let position = 0;
+  let lastBottomMax = null;
+  let stablePasses = 0;
+  let passes = 0;
+
+  while (passes < maxPasses && stablePasses < stableBottomPasses) {
+    const maxBefore = documentMaxScroll(scrollContainer);
+    const target = Math.min(position, maxBefore);
+    scrollContainer.scrollTop = target;
+    const result = await renderAtCurrentPosition();
+    passes += 1;
+
+    const maxAfter = documentMaxScroll(scrollContainer);
+    const atBottom = target >= maxAfter - 1;
+    if (atBottom) {
+      stablePasses = lastBottomMax === maxAfter && Number(result?.changes || 0) === 0
+        ? stablePasses + 1
+        : 0;
+      lastBottomMax = maxAfter;
+      position = maxAfter;
+    } else {
+      stablePasses = 0;
+      lastBottomMax = null;
+      position = Math.min(target + step, maxAfter);
+    }
+  }
+
+  return { complete: stablePasses >= stableBottomPasses, passes };
+}
+
+export async function waitForStableCollection({
+  wait,
+  collect,
+  minPasses = 4,
+  maxPasses = 15,
+  requiredStablePasses = 2,
+}) {
+  let stablePasses = 0;
+  let totalChanges = 0;
+  let passes = 0;
+  while (passes < maxPasses) {
+    await wait();
+    const changes = Number(collect() || 0);
+    totalChanges += changes;
+    passes += 1;
+    stablePasses = changes === 0 ? stablePasses + 1 : 0;
+    if (passes >= minPasses && stablePasses >= requiredStablePasses) break;
+  }
+  return { changes: totalChanges, passes };
 }
 
 export function buildArticleFromBlocks(documentRef, collection) {
@@ -254,4 +315,22 @@ function isElementVisible(element) {
 
 function normalizeText(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function blockCompletenessScore(block) {
+  const textLength = String(block?.textContent ?? "")
+    .replace(/\p{Cf}/gu, "")
+    .replace(/\s+/g, "")
+    .length;
+  const images = Array.from(block?.querySelectorAll?.("img") ?? []);
+  const loadedImages = images.filter((image) => (
+    image.getAttribute?.("src")
+    || image.getAttribute?.("data-src")
+    || image.getAttribute?.("data-original")
+  )).length;
+  return textLength * 2 + images.length * 100 + loadedImages * 5_000;
+}
+
+function documentMaxScroll(scrollContainer) {
+  return Math.max(0, Number(scrollContainer.scrollHeight || 0) - Number(scrollContainer.clientHeight || 0));
 }

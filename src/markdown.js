@@ -4,10 +4,11 @@ const TEXT_NODE = 3;
 const ELEMENT_NODE = 1;
 
 export function convertArticle(root, options) {
-  const title = String(options?.title ?? "未命名飞书文档").trim() || "未命名飞书文档";
+  const title = String(options?.title ?? "未命名飞书文档").replace(/\p{Cf}/gu, "").trim() || "未命名飞书文档";
   const images = [];
   const context = { images };
   const body = renderChildren(root, context, { block: true })
+    .replace(/\p{Cf}/gu, "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
