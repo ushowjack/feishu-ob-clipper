@@ -6,6 +6,7 @@ import {
   coercePropertyValue,
   createDefaultTemplate,
   instantiateProperties,
+  migratePropertyTemplate,
   serializeFrontmatter,
   validateProperties,
 } from "../src/properties.js";
@@ -15,13 +16,14 @@ test("默认模板自动填入当前文章上下文", () => {
     title: "测试文章",
     url: "https://x.feishu.cn/wiki/a",
     createdDate: "2026-07-12",
+    publishedDate: "2026-06-30",
   });
 
   assert.deepEqual(properties.map(({ key, type, value }) => ({ key, type, value })), [
     { key: "title", type: "text", value: "测试文章" },
     { key: "source", type: "text", value: "https://x.feishu.cn/wiki/a" },
     { key: "author", type: "list", value: [] },
-    { key: "published", type: "date", value: "" },
+    { key: "published", type: "date", value: "2026-06-30" },
     { key: "created", type: "date", value: "2026-07-12" },
     { key: "description", type: "text", value: "" },
     { key: "tags", type: "list", value: ["clippings"] },
@@ -55,6 +57,26 @@ test("自动来源与字段类型不兼容时回退到默认值", () => {
   }], { title: "不是布尔值" });
 
   assert.equal(properties[0].value, false);
+});
+
+test("旧版默认 published 字段迁移到页面日期来源且不覆盖自定义字段", () => {
+  const template = createDefaultTemplate();
+  template[3].source = "none";
+  template.push({
+    id: "custom-published",
+    key: "my_date",
+    label: "my_date",
+    type: "date",
+    source: "none",
+    defaultValue: "",
+    enabled: true,
+  });
+
+  const migrated = migratePropertyTemplate(template, 1);
+
+  assert.equal(migrated[3].source, "publishedDate");
+  assert.equal(migrated[7].source, "none");
+  assert.equal(template[3].source, "none");
 });
 
 test("转换五种属性类型并拒绝非法值", () => {

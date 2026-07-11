@@ -9,6 +9,7 @@ import {
   cleanArticleClone,
   collectRenderedBlocks,
   collectVirtualizedBlocks,
+  extractDocumentDate,
   resolveFetchableImageUrl,
   scoreArticleCandidate,
   stabilizeFeishuImageUrls,
@@ -42,6 +43,45 @@ test("优先选择长正文而非导航", () => {
   const nav = candidate({ text: "首页 文档 设置", blocks: 1 });
   const article = candidate({ text: "这是一段足够长的正文".repeat(30), blocks: 12 });
   assert.equal(chooseArticleCandidate([nav, article]), article);
+});
+
+test("优先提取页面明确的发布日期而不是修改日期", () => {
+  const publishedMeta = { getAttribute: (name) => name === "content" ? "2026-06-30T14:55:00+08:00" : null };
+  const modifiedHeader = { textContent: "7月3日修改", getAttribute: () => null };
+  const documentRef = {
+    querySelector(selector) {
+      if (selector === "meta[property='article:published_time']") return publishedMeta;
+      return null;
+    },
+    querySelectorAll(selector) {
+      return selector === ".page-block-header" ? [modifiedHeader] : [];
+    },
+  };
+
+  assert.equal(extractDocumentDate(documentRef, new Date(2026, 6, 12)), "2026-06-30");
+});
+
+test("没有发布日期时从正文头部修改日期提取页面日期", () => {
+  const documentRef = {
+    querySelector() { return null; },
+    querySelectorAll(selector) {
+      if (selector === ".page-block-header") return [{ textContent: "文章标题 7月3日修改", getAttribute: () => null }];
+      if (selector === ".note-meta__desc") return [{ textContent: "最新修改时间为07月02日", getAttribute: () => null }];
+      return [];
+    },
+  };
+
+  assert.equal(extractDocumentDate(documentRef, new Date(2026, 6, 12)), "2026-07-03");
+});
+
+test("不会把正文中的普通日期误识别成页面日期", () => {
+  const documentRef = {
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
+    body: { textContent: "正文提到 2025年3月1日 的历史事件" },
+  };
+
+  assert.equal(extractDocumentDate(documentRef, new Date(2026, 6, 12)), "");
 });
 
 test("忽略隐藏节点和过短内容", () => {

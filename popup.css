@@ -382,12 +382,14 @@ button { color: inherit; }
 
 .status {
   min-height: 16px;
-  overflow: hidden;
+  max-height: 68px;
+  overflow-x: hidden;
+  overflow-y: auto;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .status.success { color: var(--success); }

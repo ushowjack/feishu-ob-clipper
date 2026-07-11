@@ -1,13 +1,14 @@
 import { escapeYamlString } from "./path-utils.js";
 
 export const PROPERTY_TYPES = ["text", "list", "date", "boolean", "number"];
-export const PROPERTY_SOURCES = ["none", "title", "url", "createdDate"];
+export const PROPERTY_SOURCES = ["none", "title", "url", "publishedDate", "createdDate"];
+export const PROPERTY_TEMPLATE_VERSION = 2;
 
 const DEFAULT_TEMPLATE = [
   ["title", "text", "title", ""],
   ["source", "text", "url", ""],
   ["author", "list", "none", []],
-  ["published", "date", "none", ""],
+  ["published", "date", "publishedDate", ""],
   ["created", "date", "createdDate", ""],
   ["description", "text", "none", ""],
   ["tags", "list", "none", ["clippings"]],
@@ -43,6 +44,21 @@ export function cloneProperties(properties) {
     defaultValue: cloneValue(field.defaultValue),
     value: cloneValue(field.value),
   }));
+}
+
+export function migratePropertyTemplate(template, fromVersion = 0) {
+  const migrated = cloneProperties(template);
+  if (fromVersion < 2) {
+    const published = migrated.find((field) => (
+      field.id === "default-4"
+      && field.key === "published"
+      && field.type === "date"
+      && field.source === "none"
+      && !field.defaultValue
+    ));
+    if (published) published.source = "publishedDate";
+  }
+  return migrated;
 }
 
 export function coercePropertyValue(type, value) {
@@ -126,6 +142,7 @@ function sourceValue(field, context) {
   const automatic = {
     title: context.title,
     url: context.url,
+    publishedDate: context.publishedDate,
     createdDate: context.createdDate,
   }[field.source];
   const type = normalizeType(field.type);

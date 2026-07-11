@@ -374,6 +374,39 @@ export function extractDocumentTitle(documentRef) {
     .trim() || "未命名飞书文档";
 }
 
+export function extractDocumentDate(documentRef, now = new Date()) {
+  const metadataSelectors = [
+    "meta[property='article:published_time']",
+    "meta[name='article:published_time']",
+    "meta[name='publish_time']",
+    "[itemprop='datePublished']",
+    "time[datetime]",
+  ];
+  for (const selector of metadataSelectors) {
+    const element = documentRef.querySelector?.(selector);
+    const rawValue = element?.getAttribute?.("content")
+      || element?.getAttribute?.("datetime")
+      || element?.textContent;
+    const date = normalizeDocumentDate(rawValue, now, false);
+    if (date) return date;
+  }
+
+  const textSelectors = [
+    "[data-testid*='publish']",
+    "[class*='publish']",
+    ".page-block-header",
+    ".note-meta__desc",
+    "[class*='document'][class*='meta']",
+  ];
+  for (const selector of textSelectors) {
+    for (const element of Array.from(documentRef.querySelectorAll?.(selector) ?? [])) {
+      const date = normalizeDocumentDate(element?.textContent, now, true);
+      if (date) return date;
+    }
+  }
+  return "";
+}
+
 export function isLikelyAccessError(documentRef) {
   const text = normalizeText(documentRef.body?.innerText ?? documentRef.body?.textContent).slice(0, 2_000);
   return /(?:无权限|暂无权限|申请访问|请求访问|登录后查看|请先登录|页面不存在|文档已删除)/.test(text);
@@ -395,6 +428,34 @@ function isElementVisible(element) {
 
 function normalizeText(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeDocumentDate(value, now, requireDateLabel) {
+  const text = normalizeText(value);
+  if (!text || (requireDateLabel && !/(?:发布|创建|修改)/.test(text))) return "";
+
+  const full = text.match(/(\d{4})[年/.-](\d{1,2})[月/.-](\d{1,2})(?:日)?/);
+  if (full) return validDateParts(Number(full[1]), Number(full[2]), Number(full[3]));
+
+  const short = text.match(/(\d{1,2})月(\d{1,2})日/);
+  if (!short) return "";
+  const month = Number(short[1]);
+  const day = Number(short[2]);
+  let year = now.getFullYear();
+  const candidate = new Date(year, month - 1, day);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (candidate > today) year -= 1;
+  return validDateParts(year, month, day);
+}
+
+function validDateParts(year, month, day) {
+  const candidate = new Date(year, month - 1, day);
+  if (
+    candidate.getFullYear() !== year
+    || candidate.getMonth() !== month - 1
+    || candidate.getDate() !== day
+  ) return "";
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function blockCompletenessScore(block) {

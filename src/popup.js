@@ -6,7 +6,9 @@ import {
   createDefaultTemplate,
   emptyValueForType,
   instantiateProperties,
+  migratePropertyTemplate,
   PROPERTY_SOURCES,
+  PROPERTY_TEMPLATE_VERSION,
   PROPERTY_TYPES,
   serializeFrontmatter,
   validateProperties,
@@ -44,6 +46,7 @@ const SOURCE_LABELS = {
   none: "使用默认值",
   title: "当前文章标题",
   url: "当前页面网址",
+  publishedDate: "页面日期",
   createdDate: "当天日期",
 };
 
@@ -113,17 +116,22 @@ async function initialize() {
       noteDirectory: "raw/01-articles",
       attachmentDirectory: "attachments/feishu",
       propertyTemplate: createDefaultTemplate(),
+      propertyTemplateVersion: 0,
     }),
     loadDirectoryHandle().catch(() => null),
   ]);
 
   state.tab = tab ?? null;
   state.vaultHandle = handle;
-  state.template = normalizeTemplate(settings.propertyTemplate);
+  state.template = normalizeTemplate(migratePropertyTemplate(
+    settings.propertyTemplate,
+    settings.propertyTemplateVersion,
+  ));
   state.properties = instantiateProperties(state.template, {
     title: tab?.title || "",
     url: tab?.url || "",
     createdDate: localDate(),
+    publishedDate: "",
   });
   state.permission = handle ? await queryVaultPermission(handle) : "denied";
 
@@ -131,6 +139,12 @@ async function initialize() {
   elements.noteDirectory.value = settings.noteDirectory;
   elements.quickNoteDirectory.value = settings.noteDirectory;
   elements.attachmentDirectory.value = settings.attachmentDirectory;
+  if (settings.propertyTemplateVersion < PROPERTY_TEMPLATE_VERSION) {
+    await chrome.storage.local.set({
+      propertyTemplate: state.template,
+      propertyTemplateVersion: PROPERTY_TEMPLATE_VERSION,
+    });
+  }
   renderProperties();
   updateUi();
 
@@ -148,6 +162,7 @@ async function loadArticlePreview() {
     const extracted = await sendToCurrentTab({ type: "EXTRACT_ARTICLE" });
     if (!extracted?.ok) throw new Error(extracted?.error || "读取飞书正文失败");
     state.article = extracted.article;
+    applyExtractedPublishedDate(extracted.article.publishedDate);
 
     const initialTabTitle = state.tab?.title || "";
     const titleField = state.properties.find((field) => field.key === "title");
@@ -303,6 +318,7 @@ async function saveTemplateSettings() {
     state.template = cloneProperties(state.templateDraft);
     await chrome.storage.local.set({
       propertyTemplate: state.template,
+      propertyTemplateVersion: PROPERTY_TEMPLATE_VERSION,
       noteDirectory: elements.noteDirectory.value.trim(),
       attachmentDirectory: elements.attachmentDirectory.value.trim(),
     });
@@ -344,6 +360,13 @@ function handleTitleInput() {
     titleField.value = elements.title.value;
     renderProperties();
   }
+}
+
+function applyExtractedPublishedDate(publishedDate) {
+  if (!publishedDate) return;
+  const templateField = state.template.find((field) => field.enabled !== false && field.source === "publishedDate");
+  const property = templateField && state.properties.find((field) => field.id === templateField.id);
+  if (property && !property.value) property.value = publishedDate;
 }
 
 function renderProperties() {

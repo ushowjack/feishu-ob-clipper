@@ -39,6 +39,7 @@ async function extractArticle() {
       ok: true,
       article: {
         title: core.extractDocumentTitle(document),
+        publishedDate: core.extractDocumentDate(document),
         html: clone.innerHTML,
         url: location.href,
       },
