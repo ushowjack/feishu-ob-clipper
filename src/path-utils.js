@@ -4,6 +4,7 @@ const MAX_FILENAME_LENGTH = 120;
 export function sanitizeFilename(value, fallback = DEFAULT_TITLE) {
   const normalized = String(value ?? "")
     .normalize("NFC")
+    .replace(/\p{Cf}+/gu, " ")
     .replace(/[<>:"/\\|?*\u0000-\u001F\u007F]+/g, " ")
     .replace(/\s+/g, " ")
     .replace(/[. ]+$/g, "")
