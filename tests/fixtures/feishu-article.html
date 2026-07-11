@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="UTF-8"><title>本地飞书结构夹具</title></head>
+  <body>
+    <nav>首页 文档 设置</nav>
+    <main>
+      <div class="docx-editor ProseMirror" contenteditable="true">
+        <h1>结构测试文档</h1>
+        <p>这是一段用于验证正文候选评分与 Markdown 转换的长文本。它会重复提供足够的文字长度，确保短导航不会被错误识别为正文。这里继续补充测试内容，以覆盖普通中文段落和<strong>粗体重点</strong>。</p>
+        <h2>列表</h2>
+        <ul>
+          <li>普通项目<ul><li>嵌套项目</li></ul></li>
+          <li><input type="checkbox" checked>已完成任务</li>
+        </ul>
+        <blockquote><p>这是一段引用。</p></blockquote>
+        <pre><code class="language-js">const answer = 42;
+console.log(answer);</code></pre>
+        <table>
+          <thead><tr><th>字段</th><th>值</th></tr></thead>
+          <tbody><tr><td>来源</td><td>飞书</td></tr></tbody>
+        </table>
+        <p><a href="/docx/relative-link">相对链接</a></p>
+        <p><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Crect width='8' height='8' fill='green'/%3E%3C/svg%3E" alt="可保存图片"></p>
+        <p><img src="https://invalid.example/not-found.png" alt="失败回退图片"></p>
+      </div>
+    </main>
+    <aside class="comment-panel">评论不应进入正文</aside>
+  </body>
+</html>
