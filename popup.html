@@ -3,14 +3,20 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>飞书 → Obsidian</title>
+    <title>飞摘</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
     <main class="app-shell">
       <section id="editor-view" class="view">
         <header class="toolbar">
-          <strong class="template-name">Default</strong>
+          <div class="brand-lockup">
+            <img class="brand-logo" src="assets/logo.svg" alt="" aria-hidden="true">
+            <div class="brand-copy">
+              <strong class="brand-name">飞摘</strong>
+              <span class="template-name">Default</span>
+            </div>
+          </div>
           <button id="open-settings" class="icon-button" type="button" aria-label="打开模板设置" title="模板设置">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.55V20.3h-3v-.09a1.7 1.7 0 0 0-1.04-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7 15a1.7 1.7 0 0 0-1.55-1.04H5.3v-3h.15A1.7 1.7 0 0 0 7 9.92a1.7 1.7 0 0 0-.34-1.88L6.6 7.98l2.12-2.12.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 11.7 4.7v-.1h3v.1a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.55 1.04h.15v3h-.15A1.7 1.7 0 0 0 19.4 15Z"/></svg>
           </button>
@@ -40,6 +46,7 @@
         </header>
 
         <div class="settings-scroll">
+          <div id="settings-status" class="settings-status" role="status" aria-live="polite"></div>
           <section class="settings-group">
             <div class="settings-heading">
               <h2>默认属性</h2>

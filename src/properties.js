@@ -128,8 +128,16 @@ function sourceValue(field, context) {
     url: context.url,
     createdDate: context.createdDate,
   }[field.source];
-  const value = automatic === undefined || automatic === "" ? field.defaultValue : automatic;
-  return coercePropertyValue(normalizeType(field.type), value ?? emptyValueForType(normalizeType(field.type)));
+  const type = normalizeType(field.type);
+  const fallback = field.defaultValue ?? emptyValueForType(type);
+  if (automatic !== undefined && automatic !== "") {
+    try {
+      return coercePropertyValue(type, automatic);
+    } catch {
+      // 自动来源与字段类型不兼容时使用模板默认值。
+    }
+  }
+  return coercePropertyValue(type, fallback);
 }
 
 function normalizeType(type) {

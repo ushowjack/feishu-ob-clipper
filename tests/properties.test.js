@@ -43,6 +43,20 @@ test("临时属性副本不会污染模板或原属性", () => {
   assert.deepEqual(properties[6].value, ["clippings"]);
 });
 
+test("自动来源与字段类型不兼容时回退到默认值", () => {
+  const properties = instantiateProperties([{
+    id: "draft",
+    key: "draft",
+    label: "draft",
+    type: "boolean",
+    source: "title",
+    defaultValue: false,
+    enabled: true,
+  }], { title: "不是布尔值" });
+
+  assert.equal(properties[0].value, false);
+});
+
 test("转换五种属性类型并拒绝非法值", () => {
   assert.equal(coercePropertyValue("text", 12), "12");
   assert.deepEqual(coercePropertyValue("list", "a, b\nc"), ["a", "b", "c"]);

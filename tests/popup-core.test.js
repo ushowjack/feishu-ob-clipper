@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   dataUrlToBlob,
+  localDate,
   localIsoTimestamp,
+  nextPropertyKey,
   shouldPreserveStatus,
   validateFeishuUrl,
 } from "../src/popup-core.js";
@@ -36,6 +38,15 @@ test("拒绝无效 data URL", () => {
 test("生成包含本地时区偏移的 ISO 时间", () => {
   const value = localIsoTimestamp(new Date("2026-07-11T04:00:00.000Z"), -480);
   assert.equal(value, "2026-07-11T12:00:00+08:00");
+});
+
+test("使用本地年月日生成日期而不经过 UTC 截断", () => {
+  assert.equal(localDate(new Date(2026, 6, 12, 23, 30)), "2026-07-12");
+});
+
+test("生成不重复的自定义属性名", () => {
+  assert.equal(nextPropertyKey([{ key: "title" }]), "property");
+  assert.equal(nextPropertyKey([{ key: "property" }, { key: "property_2" }]), "property_3");
 });
 
 test("界面刷新时保留错误、警告和成功状态", () => {

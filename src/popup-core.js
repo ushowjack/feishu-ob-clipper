@@ -31,6 +31,23 @@ export function localIsoTimestamp(date = new Date(), timezoneOffset = date.getTi
   return `${body}${sign}${hours}:${minutes}`;
 }
 
+export function localDate(date = new Date()) {
+  const year = String(date.getFullYear()).padStart(4, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function nextPropertyKey(properties, base = "property") {
+  const keys = new Set((properties ?? []).map((field) => String(field.key ?? "").trim()));
+  if (!keys.has(base)) return base;
+  for (let suffix = 2; suffix <= 999; suffix += 1) {
+    const candidate = `${base}_${suffix}`;
+    if (!keys.has(candidate)) return candidate;
+  }
+  throw new Error("属性数量过多，请删除不需要的属性后重试");
+}
+
 export function shouldPreserveStatus(className) {
   return /(?:^|\s)(?:error|warning|success)(?:\s|$)/.test(String(className ?? ""));
 }
