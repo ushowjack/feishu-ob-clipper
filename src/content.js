@@ -23,6 +23,7 @@ async function extractArticle() {
       return { ok: false, error: "没有识别到已加载的飞书正文，请等待页面加载完成后重试。" };
     }
     const clone = core.cleanArticleClone(root);
+    core.absolutizeCloneUrls(clone, location.href);
     const textLength = String(clone.textContent ?? "").replace(/\s+/g, "").length;
     if (textLength < 30) {
       return { ok: false, error: "识别到的正文过短，为避免保存空页面，本次未写入文件。" };

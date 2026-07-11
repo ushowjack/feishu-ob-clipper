@@ -15,6 +15,9 @@ export function element(tagName, attributes = {}, children = []) {
     getAttribute(name) {
       return Object.hasOwn(attributes, name) ? String(attributes[name]) : null;
     },
+    setAttribute(name, value) {
+      attributes[name] = String(value);
+    },
     hasAttribute(name) {
       return Object.hasOwn(attributes, name);
     },
@@ -26,6 +29,14 @@ export function element(tagName, attributes = {}, children = []) {
     },
     querySelector(selector) {
       return find(this, (candidate) => candidate.matches?.(selector)) ?? null;
+    },
+    querySelectorAll(selector) {
+      const accepted = selector.split(",").map((part) => part.trim());
+      return findAll(this, (candidate) => accepted.some((part) => {
+        if (part === "a[href]") return candidate.tagName === "A" && candidate.hasAttribute("href");
+        if (part === "img") return candidate.tagName === "IMG";
+        return false;
+      }));
     },
   };
   Object.defineProperty(node, "textContent", {
@@ -43,4 +54,12 @@ function find(node, predicate) {
     if (nested) return nested;
   }
   return null;
+}
+
+function findAll(node, predicate, matches = []) {
+  for (const child of node.childNodes ?? []) {
+    if (predicate(child)) matches.push(child);
+    findAll(child, predicate, matches);
+  }
+  return matches;
 }

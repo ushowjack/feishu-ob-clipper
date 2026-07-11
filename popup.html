@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>飞书 → Obsidian</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="panel">
+      <header class="hero">
+        <div class="brand-mark" aria-hidden="true">↘</div>
+        <div>
+          <p class="eyebrow">飞书 → Obsidian</p>
+          <h1 id="document-title">正在读取当前页面…</h1>
+        </div>
+      </header>
+
+      <section class="destination" aria-label="保存位置">
+        <div>
+          <span class="label">Vault</span>
+          <strong id="vault-name">尚未选择</strong>
+        </div>
+        <span id="permission-badge" class="badge">未授权</span>
+      </section>
+
+      <details class="settings">
+        <summary>保存设置</summary>
+        <label>
+          <span>笔记目录</span>
+          <input id="note-directory" type="text" placeholder="Vault 根目录" autocomplete="off">
+          <small>留空表示 Vault 根目录</small>
+        </label>
+        <label>
+          <span>附件目录</span>
+          <input id="attachment-directory" type="text" value="attachments/feishu" autocomplete="off">
+        </label>
+        <button id="change-vault" class="text-button" type="button">重新选择 Vault</button>
+      </details>
+
+      <div id="status" class="status" role="status" aria-live="polite">首次使用需要选择 Obsidian Vault。</div>
+      <button id="primary-button" class="primary" type="button">选择 Obsidian Vault</button>
+      <p class="privacy">内容仅在本机浏览器和你选择的 Vault 之间处理。</p>
+    </main>
+    <script type="module" src="src/popup.js"></script>
+  </body>
+</html>

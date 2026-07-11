@@ -80,6 +80,27 @@ export function cleanArticleClone(articleRoot) {
   return clone;
 }
 
+export function absolutizeCloneUrls(clone, baseUrl) {
+  clone.querySelectorAll?.("a[href]").forEach((link) => {
+    const href = link.getAttribute("href");
+    try {
+      link.setAttribute("href", new URL(href, baseUrl).href);
+    } catch {
+      link.removeAttribute?.("href");
+    }
+  });
+  clone.querySelectorAll?.("img").forEach((image) => {
+    const source = image.getAttribute("src") || image.getAttribute("data-src") || image.getAttribute("data-original");
+    if (!source) return;
+    try {
+      image.setAttribute("src", new URL(source, baseUrl).href);
+    } catch {
+      image.removeAttribute?.("src");
+    }
+  });
+  return clone;
+}
+
 export function extractDocumentTitle(documentRef) {
   const inputSelectors = [
     "input[data-testid*='title']",
