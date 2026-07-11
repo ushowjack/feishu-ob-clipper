@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "飞书正文保存到 Obsidian",
+  "version": "0.1.0",
+  "description": "把当前飞书 Wiki 或文档正文和图片保存到 Obsidian Vault。",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["https://*.feishu.cn/*"],
+  "action": {
+    "default_title": "保存到 Obsidian",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.feishu.cn/wiki/*", "https://*.feishu.cn/docx/*", "https://*.feishu.cn/docs/*"],
+      "js": ["src/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content-core.js"],
+      "matches": ["https://*.feishu.cn/*"]
+    }
+  ]
+}
