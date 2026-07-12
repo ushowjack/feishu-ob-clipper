@@ -49,6 +49,7 @@ export async function saveArticleToVault({
 
   for (const image of article?.images ?? []) {
     const placeholder = `@@FEISHU_IMAGE_${image.id}@@`;
+    const gridPlaceholder = `@@FEISHU_GRID_IMAGE_${image.id}@@`;
     const result = imageResults?.get(image.id);
     if (result?.ok && result.blob instanceof Blob) {
       try {
@@ -58,7 +59,12 @@ export async function saveArticleToVault({
         const imageName = await nextAvailableAssetName(attachmentFolder, base, extension);
         await writeFile(attachmentFolder, imageName, result.blob);
         const relativePath = [...attachmentDirectorySegments, imageName].join("/");
-        markdown = replaceAll(markdown, placeholder, `![[${relativePath}]]`);
+        markdown = replaceAll(markdown, placeholder, `![[${encodeWikiPath(relativePath)}]]`);
+        markdown = replaceAll(
+          markdown,
+          gridPlaceholder,
+          htmlLocalImage(relativeAssetPath(noteDirectorySegments, attachmentDirectorySegments, imageName), image.alt),
+        );
         savedImages += 1;
         continue;
       } catch (error) {
@@ -69,6 +75,7 @@ export async function saveArticleToVault({
     }
 
     markdown = replaceAll(markdown, placeholder, markdownRemoteImage(image.alt, image.src));
+    markdown = replaceAll(markdown, gridPlaceholder, htmlRemoteImage(image.alt, image.src));
     failedImages += 1;
   }
 
@@ -148,6 +155,50 @@ function markdownRemoteImage(alt, src) {
   const safeAlt = String(alt || "图片").replace(/([\\\[\]])/g, "\\$1");
   const safeUrl = encodeURI(String(src ?? "")).replace(/\(/g, "%28").replace(/\)/g, "%29");
   return `![${safeAlt}](${safeUrl})`;
+}
+
+function htmlLocalImage(relativePath, alt) {
+  return `<img class="feishu-image" src="${escapeHtml(encodeRelativePath(relativePath))}" alt="${escapeHtml(alt || "图片")}" style="width:100%;height:auto;display:block;">`;
+}
+
+function htmlRemoteImage(alt, src) {
+  return `<img class="feishu-image" src="${escapeHtml(encodeURI(String(src ?? "")))}" alt="${escapeHtml(alt || "图片")}" style="width:100%;height:auto;display:block;">`;
+}
+
+function relativeAssetPath(noteDirectorySegments, attachmentDirectorySegments, filename) {
+  let common = 0;
+  while (
+    common < noteDirectorySegments.length
+    && common < attachmentDirectorySegments.length
+    && noteDirectorySegments[common] === attachmentDirectorySegments[common]
+  ) common += 1;
+  const parent = Array(noteDirectorySegments.length - common).fill("..");
+  return [...parent, ...attachmentDirectorySegments.slice(common), filename].join("/") || filename;
+}
+
+function encodeRelativePath(value) {
+  return String(value ?? "")
+    .split("/")
+    .map((segment) => segment === ".." ? segment : encodeURIComponent(segment))
+    .join("/");
+}
+
+function encodeWikiPath(value) {
+  return String(value ?? "")
+    .replace(/%/g, "%25")
+    .replace(/#/g, "%23")
+    .replace(/\^/g, "%5E")
+    .replace(/\|/g, "%7C")
+    .replace(/\[/g, "%5B")
+    .replace(/\]/g, "%5D");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function replaceAll(value, search, replacement) {

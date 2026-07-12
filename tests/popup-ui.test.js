@@ -66,6 +66,12 @@ test("主界面不渲染正文预览但仍保留文章提取流程", async () =>
   assert.match(popupScript, /state\.article = extracted\.article/);
 });
 
+test("转换正文时传入飞书原文地址供临时视频回退", async () => {
+  const popupScript = await readFile(new URL("../src/popup.js", import.meta.url), "utf8");
+
+  assert.match(popupScript, /source:\s*extracted\.article\.url/);
+});
+
 test("主编辑页使用完整高度且不产生内部滚动", async () => {
   const css = await readFile(new URL("../popup.css", import.meta.url), "utf8");
   const editorScroll = cssRule(css, ".editor-scroll");

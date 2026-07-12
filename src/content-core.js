@@ -28,6 +28,17 @@ const REMOVE_SELECTORS = [
   "[class*='toolbar']",
   "[class*='catalog']",
   "[class*='sidebar']",
+  ".docx-video-pip-overlayer",
+  ".preview-video-duration",
+  "[data-sel='box-preview-controls']",
+  ".xgplayer-controls",
+  ".xgplayer-replay",
+  ".xg-mini-layer",
+  "[data-sel='box-preview-video-header']",
+  "[data-sel='box-preview-not-previewable-placeholder-image']",
+  "[data-sel='box-preview-not-previewable-title']",
+  "[data-sel='box-preview-not-previewable-btn-group']",
+  ".grid-column-percent",
   "[style*='display: none']",
   "[style*='display:none']",
 ];
@@ -79,9 +90,35 @@ export function findArticleRoot(documentRef) {
 
 export function cleanArticleClone(articleRoot) {
   const clone = articleRoot.cloneNode(true);
+  const liveImages = Array.from(articleRoot.querySelectorAll?.("img") ?? []);
+  const clonedImages = Array.from(clone.querySelectorAll?.("img") ?? []);
+  clonedImages.forEach((image, index) => {
+    if (index < liveImages.length) image.setAttribute?.("data-feishu-source-index", String(index));
+  });
+  preserveFeishuVideoMetadata(clone);
   clone.querySelectorAll?.(REMOVE_SELECTORS.join(",")).forEach((element) => element.remove());
+  removeUnsupportedVideoInstructions(clone);
   stabilizeFeishuImageUrls(clone);
   return clone;
+}
+
+function preserveFeishuVideoMetadata(root) {
+  for (const video of Array.from(root?.querySelectorAll?.("video") ?? [])) {
+    const fileBlock = video.closest?.("[data-block-type='file'],.docx-file-block");
+    const title = fileBlock?.querySelector?.("[data-sel='box-preview-video-header']")?.textContent
+      || fileBlock?.querySelector?.(".file-name")?.textContent;
+    const normalized = normalizeText(title);
+    if (normalized) video.setAttribute?.("data-feishu-video-title", normalized);
+  }
+}
+
+function removeUnsupportedVideoInstructions(root) {
+  const containers = root?.querySelectorAll?.("[data-sel='box-preview-not-previewable-container']") ?? [];
+  for (const container of Array.from(containers)) {
+    for (const child of Array.from(container.children ?? [])) {
+      if (normalizeText(child.textContent) === "请下载文件后用其他软件打开") child.remove?.();
+    }
+  }
 }
 
 export function stabilizeFeishuImageUrls(root) {
@@ -126,6 +163,17 @@ export function absolutizeCloneUrls(clone, baseUrl) {
       image.setAttribute("src", new URL(source, baseUrl).href);
     } catch {
       image.removeAttribute?.("src");
+    }
+  });
+  clone.querySelectorAll?.("video[src],source[src],video[data-src],source[data-src]").forEach((media) => {
+    for (const attribute of ["src", "data-src"]) {
+      const source = media.getAttribute(attribute);
+      if (!source) continue;
+      try {
+        media.setAttribute(attribute, new URL(source, baseUrl).href);
+      } catch {
+        media.removeAttribute?.(attribute);
+      }
     }
   });
   return clone;
@@ -222,11 +270,13 @@ export async function cacheRenderedBlobImages({
 
     const liveImages = Array.from(liveBlock.querySelectorAll?.("img") ?? []);
     const clonedImages = Array.from(record.clone.querySelectorAll?.("img") ?? []);
-    for (let index = 0; index < Math.min(liveImages.length, clonedImages.length); index += 1) {
-      const source = liveImages[index].getAttribute?.("src") || "";
+    for (let index = 0; index < clonedImages.length; index += 1) {
+      const sourceIndexValue = clonedImages[index].getAttribute?.("data-feishu-source-index");
+      const sourceIndex = /^\d+$/.test(String(sourceIndexValue)) ? Number(sourceIndexValue) : index;
+      const source = liveImages[sourceIndex]?.getAttribute?.("src") || "";
       if (!source.startsWith("blob:")) continue;
 
-      const cacheId = `${recordId}:${index}`;
+      const cacheId = `${recordId}:${sourceIndex}`;
       if (!cache.has(cacheId)) {
         try {
           cache.set(cacheId, await readImage(source));

@@ -114,6 +114,25 @@ test("把正文中的相对链接和懒加载图片转换为绝对地址", () =>
   assert.equal(image.getAttribute("src"), "https://a.feishu.cn/wiki/image/1.png");
 });
 
+test("把相对视频地址转换为飞书绝对地址", () => {
+  const video = element("video", { src: "/space/api/video/token" });
+  const lazyVideo = element("video", { "data-src": "./space/api/video/lazy-token" });
+  const source = element("source", { src: "/space/api/video/source-token" });
+  const clone = {
+    querySelectorAll(selector) {
+      return selector === "video[src],source[src],video[data-src],source[data-src]"
+        ? [video, lazyVideo, source]
+        : [];
+    },
+  };
+
+  absolutizeCloneUrls(clone, "https://a.feishu.cn/wiki/token");
+
+  assert.equal(video.getAttribute("src"), "https://a.feishu.cn/space/api/video/token");
+  assert.equal(lazyVideo.getAttribute("data-src"), "https://a.feishu.cn/wiki/space/api/video/lazy-token");
+  assert.equal(source.getAttribute("src"), "https://a.feishu.cn/space/api/video/source-token");
+});
+
 test("允许读取飞书页面生成的 blob 图片地址", () => {
   assert.equal(
     resolveFetchableImageUrl(
@@ -182,6 +201,37 @@ test("图片仍在当前屏幕时立即缓存 blob 数据", async () => {
   assert.deepEqual(cache.get("record-1:0"), { src: "blob:https://a.feishu.cn/current", bytes: 123 });
 });
 
+test("清理播放器图片后仍按原始索引缓存正文 blob 图片", async () => {
+  const cloneAttributes = new Map([["data-feishu-source-index", "1"]]);
+  const cloneImage = {
+    getAttribute: (name) => cloneAttributes.get(name) ?? null,
+    setAttribute: (name, value) => cloneAttributes.set(name, String(value)),
+  };
+  const liveImages = [
+    { getAttribute: (name) => name === "src" ? "blob:https://a.feishu.cn/player-icon" : null },
+    { getAttribute: (name) => name === "src" ? "blob:https://a.feishu.cn/article-image" : null },
+  ];
+  const liveBlock = {
+    getAttribute: (name) => name === "data-record-id" ? "record-1" : null,
+    querySelectorAll: (selector) => selector === "img" ? liveImages : [],
+  };
+  const collection = new Map([["record-1", {
+    clone: { querySelectorAll: (selector) => selector === "img" ? [cloneImage] : [] },
+  }]]);
+  const cache = new Map();
+
+  const captured = await cacheRenderedBlobImages({
+    documentRef: { querySelectorAll: () => [liveBlock] },
+    collection,
+    cache,
+    readImage: async (src) => ({ src }),
+  });
+
+  assert.equal(captured, 1);
+  assert.equal(cloneAttributes.get("data-feishu-cache-id"), "record-1:1");
+  assert.deepEqual(cache.get("record-1:1"), { src: "blob:https://a.feishu.cn/article-image" });
+});
+
 test("图片传输完成后立即删除对应缓存", async () => {
   const cache = new Map([["record-1:0", { bytes: 123 }]]);
   const result = await consumeCachedImage(cache, "record-1:0", async (cached) => cached.bytes);
@@ -240,6 +290,79 @@ test("清除飞书图片区块中的打印占位提示", () => {
   };
   cleanArticleClone({ cloneNode: () => clone });
   assert.equal(removed, true);
+});
+
+test("清除飞书网格列宽百分比控件", () => {
+  let removed = false;
+  const percentage = { remove: () => { removed = true; } };
+  const clone = {
+    querySelectorAll(selector) {
+      if (selector === "img" || selector === "video") return [];
+      if (selector.includes(".grid-column-percent")) return [percentage];
+      if (selector === "[data-sel='box-preview-not-previewable-container']") return [];
+      return [];
+    },
+  };
+
+  cleanArticleClone({ cloneNode: () => clone, querySelectorAll: () => [] });
+
+  assert.equal(removed, true);
+});
+
+test("清除视频播放器和不支持格式卡片中的界面噪音", () => {
+  const removed = [];
+  const removable = (name) => ({ remove: () => removed.push(name) });
+  const instruction = { textContent: "请下载文件后用其他软件打开", remove: () => removed.push("instruction") };
+  const info = { textContent: "Link3操作流程@生财有术.mp4 · 134.66MB", remove: () => removed.push("info") };
+  const unsupported = { children: [instruction, info] };
+  const clone = {
+    querySelectorAll(selector) {
+      if (selector === "img") return [];
+      if (selector === "[data-sel='box-preview-not-previewable-container']") return [unsupported];
+      if (selector.includes(".xgplayer-replay")) {
+        return [
+          removable("replay"),
+          removable("mini-layer"),
+          removable("placeholder"),
+          removable("title"),
+          removable("buttons"),
+        ];
+      }
+      return [];
+    },
+  };
+
+  cleanArticleClone({ cloneNode: () => clone, querySelectorAll: () => [] });
+
+  assert.deepEqual(removed, ["replay", "mini-layer", "placeholder", "title", "buttons", "instruction"]);
+  assert.doesNotMatch(removed.join(","), /info/);
+});
+
+test("清理视频标题节点前把真实文件名保存到 video 元数据", () => {
+  const attributes = new Map();
+  const title = { textContent: "注册教程@淘金.mp4", remove: () => {} };
+  const fileBlock = {
+    querySelector(selector) {
+      return selector === "[data-sel='box-preview-video-header']" ? title : null;
+    },
+  };
+  const video = {
+    closest: () => fileBlock,
+    setAttribute: (name, value) => attributes.set(name, String(value)),
+  };
+  const clone = {
+    querySelectorAll(selector) {
+      if (selector === "img") return [];
+      if (selector === "video") return [video];
+      if (selector === "[data-sel='box-preview-not-previewable-container']") return [];
+      if (selector.includes("[data-sel='box-preview-video-header']")) return [title];
+      return [];
+    },
+  };
+
+  cleanArticleClone({ cloneNode: () => clone, querySelectorAll: () => [] });
+
+  assert.equal(attributes.get("data-feishu-video-title"), "注册教程@淘金.mp4");
 });
 
 test("当前飞书 page-main 正文优先于外围应用壳", () => {

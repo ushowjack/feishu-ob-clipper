@@ -240,7 +240,11 @@ async function saveCurrentArticle() {
     const parsed = new DOMParser().parseFromString(`<div>${extracted.article.html}</div>`, "text/html");
     const root = parsed.body.firstElementChild;
     if (!root) throw new Error("飞书正文结构为空");
-    const converted = convertArticle(root, { title, frontmatter });
+    const converted = convertArticle(root, {
+      title,
+      frontmatter,
+      source: extracted.article.url,
+    });
 
     showStatus(`正在处理 ${converted.images.length} 张图片…`);
     const imageResults = new Map();

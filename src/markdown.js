@@ -4,7 +4,11 @@ const ELEMENT_NODE = 1;
 export function convertArticle(root, options) {
   const title = String(options?.title ?? "未命名笔记").replace(/\p{Cf}/gu, "").trim() || "未命名笔记";
   const images = [];
-  const context = { images };
+  const context = {
+    images,
+    imagesByIdentity: new Map(),
+    source: normalizeLink(options?.source),
+  };
   const body = normalizeMarkdown(renderChildren(root, context, { block: true }).replace(/\p{Cf}/gu, ""));
 
   const frontmatter = String(options?.frontmatter ?? "").trim();
@@ -22,6 +26,8 @@ function renderNode(node, context, state = {}) {
 
   const tag = String(node.tagName ?? "").toLowerCase();
   const children = () => renderChildren(node, context, state);
+
+  if (isFeishuGrid(node)) return renderFeishuGrid(node, context);
 
   if (/^h[1-6]$/.test(tag)) {
     const level = Math.min(Number(tag[1]) + 1, 6);
@@ -79,12 +85,27 @@ function renderNode(node, context, state = {}) {
     case "img": {
       const src = node.getAttribute?.("src") || node.getAttribute?.("data-src") || node.getAttribute?.("data-original") || "";
       if (!src) return "";
+      const cacheId = node.getAttribute?.("data-feishu-cache-id");
+      const identity = imageIdentity(src, cacheId);
+      const existing = context.imagesByIdentity.get(identity);
+      if (existing) return imagePlaceholder(existing.id, state.inGrid);
       const id = context.images.length + 1;
       const image = { id, src, alt: node.getAttribute?.("alt") || "图片" };
-      const cacheId = node.getAttribute?.("data-feishu-cache-id");
       if (cacheId) image.cacheId = cacheId;
+      if (state.inGrid) image.layout = "grid";
+      context.imagesByIdentity.set(identity, image);
       context.images.push(image);
-      return `@@FEISHU_IMAGE_${id}@@`;
+      return imagePlaceholder(id, state.inGrid);
+    }
+    case "video": {
+      const src = findVideoSource(node);
+      if (!src) return "";
+      const title = findVideoTitle(node);
+      if (src.startsWith("blob:")) {
+        const label = `视频：${escapeLinkLabel(title)}（打开飞书原文）`;
+        return context.source ? `[${label}](${context.source})\n\n` : `${label}\n\n`;
+      }
+      return `[视频：${escapeLinkLabel(title)}](${normalizeLink(src)})\n\n`;
     }
     case "ul":
     case "ol":
@@ -117,6 +138,66 @@ function renderChildren(node, context, state = {}) {
 function renderBlock(value) {
   const content = String(value ?? "").trim();
   return content ? `${content}\n\n` : "";
+}
+
+function renderFeishuGrid(grid, context) {
+  const columns = collectDescendants(grid, isFeishuGridColumn);
+  if (!columns.length) return renderBlock(renderChildren(grid, context));
+
+  const renderedColumns = columns
+    .map((column, index) => renderFeishuGridColumn(column, context, index, columns.length))
+    .filter(Boolean)
+    .join("\n");
+  if (!renderedColumns) return "";
+
+  return [
+    '<div class="feishu-image-grid" style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px;">',
+    renderedColumns,
+    "</div>",
+    "",
+    "",
+  ].join("\n");
+}
+
+function renderFeishuGridColumn(column, context, index, count) {
+  const content = renderChildren(column, context, { block: true, inGrid: true }).trim();
+  if (!content) return "";
+  const basis = extractGridColumnBasis(column) || `calc(${(100 / count).toFixed(4)}% - 8px)`;
+  return [
+    `<div class="feishu-image-grid__column" style="flex-basis:${basis};flex-grow:0;flex-shrink:0;min-width:0;" data-column="${index + 1}">`,
+    content,
+    "</div>",
+  ].join("\n");
+}
+
+function isFeishuGrid(node) {
+  const className = classNameOf(node);
+  return /(?:^|\s)grid-block(?:\s|$)/.test(className);
+}
+
+function isFeishuGridColumn(node) {
+  const className = classNameOf(node);
+  return /(?:^|\s)docx-grid_column-block(?:\s|$)/.test(className);
+}
+
+function classNameOf(node) {
+  return String(node?.getAttribute?.("class") ?? node?.className ?? "");
+}
+
+function collectDescendants(node, predicate, matches = []) {
+  for (const child of Array.from(node?.childNodes ?? [])) {
+    if (predicate(child)) matches.push(child);
+    collectDescendants(child, predicate, matches);
+  }
+  return matches;
+}
+
+function extractGridColumnBasis(column) {
+  const style = String(column?.getAttribute?.("style") ?? "");
+  const value = style.match(/(?:^|;)\s*width:\s*([^;]+)/i)?.[1]?.trim() ?? "";
+  return /^(?:\d+(?:\.\d+)?%|calc\(\s*\d+(?:\.\d+)?%\s*-\s*\d+(?:\.\d+)?px\s*\))$/i.test(value)
+    ? value
+    : "";
 }
 
 function renderList(list, context, depth, ordered) {
@@ -231,4 +312,42 @@ function normalizeLink(value) {
   const href = String(value ?? "").trim();
   if (!href || /^javascript:/i.test(href)) return "";
   return encodeURI(href).replace(/\(/g, "%28").replace(/\)/g, "%29");
+}
+
+function findVideoTitle(video) {
+  const preserved = video.getAttribute?.("data-feishu-video-title");
+  const header = video.closest?.(".preview-card-header")?.textContent;
+  const label = String(preserved || header || "").replace(/\s+/g, " ").trim();
+  return label || "飞书视频";
+}
+
+function findVideoSource(video) {
+  const sources = Array.from(video.querySelectorAll?.("source[src],source[data-src]") ?? []);
+  const candidates = [
+    video.getAttribute?.("src"),
+    video.getAttribute?.("data-src"),
+    ...sources.flatMap((source) => [
+      source.getAttribute?.("src"),
+      source.getAttribute?.("data-src"),
+    ]),
+  ].map((value) => String(value ?? "").trim()).filter(Boolean);
+  return candidates.find((value) => !value.startsWith("blob:")) || candidates[0] || "";
+}
+
+function escapeLinkLabel(value) {
+  return String(value ?? "飞书视频").replace(/[\[\]]/g, "").trim() || "飞书视频";
+}
+
+function imageIdentity(src, cacheId) {
+  try {
+    const url = new URL(src);
+    const token = url.pathname.match(/\/(?:preview|cover)\/([^/]+)\/?$/)?.[1];
+    return token ? `feishu:${token}` : url.href;
+  } catch {
+    return String(src) || `cache:${cacheId}`;
+  }
+}
+
+function imagePlaceholder(id, inGrid) {
+  return inGrid ? `@@FEISHU_GRID_IMAGE_${id}@@` : `@@FEISHU_IMAGE_${id}@@`;
 }

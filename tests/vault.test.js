@@ -67,6 +67,52 @@ test("根据 MIME 类型选择受支持的图片扩展名", async () => {
   assert.equal(fs.has("assets/标题-01.webp"), true);
 });
 
+test("网格图片写入为带样式的 HTML 图片而普通图片保持 Wiki 嵌入", async () => {
+  const fs = fakeVault();
+  await saveArticleToVault({
+    vaultHandle: fs.root,
+    noteDirectory: "notes",
+    attachmentDirectory: "assets",
+    article: {
+      title: "网格",
+      markdown: '<div class="feishu-image-grid">@@FEISHU_GRID_IMAGE_1@@</div>\n\n@@FEISHU_IMAGE_2@@',
+      images: [
+        { id: 1, src: "https://x/large", alt: "大图", layout: "grid" },
+        { id: 2, src: "https://x/normal", alt: "普通图" },
+      ],
+    },
+    imageResults: new Map([
+      [1, { ok: true, blob: new Blob(["large"], { type: "image/png" }), mimeType: "image/png" }],
+      [2, { ok: true, blob: new Blob(["normal"], { type: "image/png" }), mimeType: "image/png" }],
+    ]),
+  });
+
+  const note = await fs.read("notes/网格.md");
+  assert.match(note, /<img class="feishu-image" src="\.\.\/assets\/%E7%BD%91%E6%A0%BC-01\.png" alt="大图"/);
+  assert.match(note, /!\[\[assets\/网格-02\.png\]\]/);
+});
+
+test("同一图片的普通与网格占位符分别写入 Wiki 嵌入和 HTML 图片", async () => {
+  const fs = fakeVault();
+  await saveArticleToVault({
+    vaultHandle: fs.root,
+    noteDirectory: "notes",
+    attachmentDirectory: "assets#grid",
+    article: {
+      title: "混排",
+      markdown: '@@FEISHU_IMAGE_1@@\n<div class="feishu-image-grid">@@FEISHU_GRID_IMAGE_1@@</div>',
+      images: [{ id: 1, src: "https://x/same", alt: "同一张图" }],
+    },
+    imageResults: new Map([
+      [1, { ok: true, blob: new Blob(["same"], { type: "image/png" }), mimeType: "image/png" }],
+    ]),
+  });
+
+  const note = await fs.read("notes/混排.md");
+  assert.match(note, /!\[\[assets%23grid\/混排-01\.png\]\]/);
+  assert.match(note, /<img class="feishu-image" src="\.\.\/assets%23grid\/%E6%B7%B7%E6%8E%92-01\.png"/);
+});
+
 test("查询和请求目录写权限", async () => {
   const handle = {
     queryPermission: async ({ mode }) => mode === "readwrite" ? "prompt" : "denied",

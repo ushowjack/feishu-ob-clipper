@@ -12,6 +12,9 @@ import {
 } from "../scripts/release-package-core.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const currentVersion = JSON.parse(
+  readFileSync(path.join(projectRoot, "package.json"), "utf8"),
+).version;
 
 test("removes the v prefix from a semantic version tag", () => {
   assert.equal(normalizeTag("v0.1.0"), "0.1.0");
@@ -100,13 +103,13 @@ test("packages the extension as a versioned flat ZIP", () => {
   const archive = path.join(
     projectRoot,
     "dist",
-    "feishu-ob-clipper-v0.1.0.zip",
+    `feishu-ob-clipper-v${currentVersion}.zip`,
   );
   rmSync(path.dirname(archive), { recursive: true, force: true });
 
   execFileSync(process.execPath, ["scripts/package-release.mjs"], {
     cwd: projectRoot,
-    env: { ...process.env, RELEASE_TAG: "v0.1.0" },
+    env: { ...process.env, RELEASE_TAG: `v${currentVersion}` },
     stdio: "pipe",
   });
 
