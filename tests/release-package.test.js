@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, rmSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -6,6 +10,8 @@ import {
   validateArchiveEntries,
   validateVersions,
 } from "../scripts/release-package-core.mjs";
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 test("removes the v prefix from a semantic version tag", () => {
   assert.equal(normalizeTag("v0.1.0"), "0.1.0");
@@ -72,4 +78,28 @@ test("rejects development files in an archive", () => {
       ]),
     /不允许的文件.*README\.md/,
   );
+});
+
+test("packages the extension as a versioned flat ZIP", () => {
+  const archive = path.join(
+    projectRoot,
+    "dist",
+    "feishu-ob-clipper-v0.1.0.zip",
+  );
+  rmSync(path.dirname(archive), { recursive: true, force: true });
+
+  execFileSync(process.execPath, ["scripts/package-release.mjs"], {
+    cwd: projectRoot,
+    env: { ...process.env, RELEASE_TAG: "v0.1.0" },
+    stdio: "pipe",
+  });
+
+  assert.equal(existsSync(archive), true);
+  const entries = execFileSync("unzip", ["-Z1", archive], {
+    encoding: "utf8",
+  })
+    .trim()
+    .split("\n");
+  validateArchiveEntries(entries);
+  assert.equal(entries.includes("manifest.json"), true);
 });
