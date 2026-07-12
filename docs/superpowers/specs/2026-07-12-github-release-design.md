@@ -8,7 +8,7 @@
 
 - `npm test` 与 JavaScript 语法检查通过后才能打包。
 - ZIP 根目录直接包含 `manifest.json`，不能额外嵌套项目目录。
-- ZIP 只包含扩展运行需要的 `manifest.json`、`popup.html`、`popup.css` 和 `src/`，不包含测试、Git 历史和开发文档。
+- ZIP 只包含扩展运行需要的 `manifest.json`、`popup.html`、`popup.css`、`src/` 和界面引用的 PNG/SVG 品牌资源，不包含测试、Git 历史和开发文档。
 - 推送格式为 `v*` 的 Git 标签时，GitHub Actions 自动校验版本、生成 ZIP、创建正式 Release 并上传附件。
 - 标签版本、`package.json` 版本和 `manifest.json` 版本必须一致；不一致时发布失败。
 - README 明确说明 Release 下载、解压、安装和升级步骤。
@@ -26,7 +26,7 @@
 
 ## 文件变更
 
-- 新增 `scripts/package-release.mjs`：版本一致性检查、发布文件白名单、ZIP 生成和产物检查。
+- 新增 `scripts/package-release.mjs`：版本一致性检查、发布文件白名单（含运行必需品牌资源）、ZIP 生成和产物检查。
 - 新增 `.github/workflows/release.yml`：标签触发、测试、打包和 Release 上传。
 - 更新 `package.json`：增加 `check` 和 `package` 命令。
 - 更新 `README.md`：增加面向普通用户的 Release 安装与升级说明，以及维护者发布步骤。

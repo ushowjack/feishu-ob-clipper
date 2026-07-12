@@ -1,0 +1,42 @@
+name: 发布 Chrome 扩展
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 运行测试
+        run: npm test
+
+      - name: 检查 JavaScript 语法
+        run: npm run check
+
+      - name: 生成 Release 安装包
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: npm run package
+
+      - name: 创建正式 Release
+        run: >-
+          gh release create "$RELEASE_TAG" dist/*.zip
+          --title "$RELEASE_TAG"
+          --generate-notes
+          --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}

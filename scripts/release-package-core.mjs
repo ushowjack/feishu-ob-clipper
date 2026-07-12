@@ -4,6 +4,7 @@ export const RELEASE_PATHS = Object.freeze([
   "manifest.json",
   "popup.html",
   "popup.css",
+  "assets",
   "src",
 ]);
 
@@ -35,7 +36,9 @@ export function validateArchiveEntries(entries) {
 
   const invalidEntry = files.find(
     (entry) =>
-      !REQUIRED_FILES.includes(entry) && !/^src\/[^/]+\.js$/.test(entry),
+      !REQUIRED_FILES.includes(entry) &&
+      !/^src\/[^/]+\.js$/.test(entry) &&
+      !/^assets\/[^/]+\.(?:png|svg)$/.test(entry),
   );
   if (invalidEntry) {
     throw new Error(`ZIP 包含不允许的文件：${invalidEntry}`);

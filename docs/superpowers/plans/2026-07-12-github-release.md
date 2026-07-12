@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - 首个正式版本固定为 `v0.1.0`，`package.json` 与 `manifest.json` 中的版本均为 `0.1.0`。
-- ZIP 根目录必须直接包含 `manifest.json`，且只包含 `manifest.json`、`popup.html`、`popup.css` 和 `src/` 下的 JavaScript 文件。
+- ZIP 根目录必须直接包含 `manifest.json`，且只包含 `manifest.json`、`popup.html`、`popup.css`、`src/` 下的 JavaScript 文件和 `assets/` 下的 PNG/SVG 品牌资源。
 - 发布前必须通过 `npm test` 与 `node --check src/*.js scripts/*.mjs`。
 - GitHub Actions 仅授予 `contents: write`，不依赖付费服务。
 - `dist/` 不提交到 Git。
