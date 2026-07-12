@@ -5,11 +5,7 @@ export function convertArticle(root, options) {
   const title = String(options?.title ?? "未命名笔记").replace(/\p{Cf}/gu, "").trim() || "未命名笔记";
   const images = [];
   const context = { images };
-  const body = renderChildren(root, context, { block: true })
-    .replace(/\p{Cf}/gu, "")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  const body = normalizeMarkdown(renderChildren(root, context, { block: true }).replace(/\p{Cf}/gu, ""));
 
   const frontmatter = String(options?.frontmatter ?? "").trim();
   const headingAndBody = `# ${escapeInline(title)}${body ? `\n\n${body}` : ""}\n`;
@@ -35,7 +31,7 @@ function renderNode(node, context, state = {}) {
 
   switch (tag) {
     case "p":
-      return `${children().trim()}\n\n`;
+      return renderBlock(children());
     case "div":
     case "section":
     case "article":
@@ -44,10 +40,11 @@ function renderNode(node, context, state = {}) {
     case "footer":
     case "figure":
     case "figcaption":
+      return renderBlock(children());
     case "span":
       return children();
     case "br":
-      return "  \n";
+      return "\\\n";
     case "strong":
     case "b":
       return wrapInline("**", children());
@@ -69,7 +66,8 @@ function renderNode(node, context, state = {}) {
       const className = code.getAttribute?.("class") ?? "";
       const language = className.match(/(?:language-|lang-)([\w+-]+)/)?.[1] ?? "";
       const value = String(code.textContent ?? "").replace(/\n$/, "");
-      const fence = value.includes("```") ? "````" : "```";
+      const longestRun = Math.max(0, ...Array.from(value.matchAll(/`+/g), (match) => match[0].length));
+      const fence = "`".repeat(Math.max(3, longestRun + 1));
       return `${fence}${language}\n${value}\n${fence}\n\n`;
     }
     case "a": {
@@ -116,6 +114,11 @@ function renderChildren(node, context, state = {}) {
   return Array.from(node?.childNodes ?? []).map((child) => renderNode(child, context, state)).join("");
 }
 
+function renderBlock(value) {
+  const content = String(value ?? "").trim();
+  return content ? `${content}\n\n` : "";
+}
+
 function renderList(list, context, depth, ordered) {
   const lines = [];
   const listItems = Array.from(list.childNodes ?? []).filter((child) => String(child.tagName ?? "").toLowerCase() === "li");
@@ -132,7 +135,12 @@ function renderList(list, context, depth, ordered) {
     const marker = ordered ? `${index + 1}.` : "-";
     const task = checkbox ? `[${checkbox.hasAttribute?.("checked") ? "x" : " "}] ` : "";
     const indent = "  ".repeat(depth);
-    lines.push(`${indent}${marker} ${task}${content}`.trimEnd());
+    const continuationIndent = `${indent}${" ".repeat(marker.length + 1)}`;
+    const indentedContent = content
+      .split("\n")
+      .map((line, lineIndex) => lineIndex === 0 || !line ? line : `${continuationIndent}${line}`)
+      .join("\n");
+    lines.push(`${indent}${marker} ${task}${indentedContent}`.trimEnd());
     for (const nested of nestedLists) {
       lines.push(renderList(nested, context, depth + 1, String(nested.tagName).toLowerCase() === "ol"));
     }
@@ -178,7 +186,45 @@ function escapeInline(value) {
 
 function wrapInline(marker, value) {
   const content = value.trim();
-  return content ? `${marker}${content}${marker}` : "";
+  if (!content) return value;
+  const leading = /^\s/u.test(value) ? " " : "";
+  const trailing = /\s$/u.test(value) ? " " : "";
+  return `${leading}${marker}${content}${marker}${trailing}`;
+}
+
+function normalizeMarkdown(value) {
+  const output = [];
+  let fenceLength = 0;
+  let previousBlank = false;
+
+  for (const sourceLine of String(value ?? "").split("\n")) {
+    if (fenceLength) {
+      output.push(sourceLine);
+      const closing = sourceLine.match(/^(`{3,})\s*$/u);
+      if (closing && closing[1].length >= fenceLength) fenceLength = 0;
+      continue;
+    }
+
+    const line = sourceLine.trimEnd();
+    const opening = line.match(/^(`{3,})[^`]*$/u);
+    if (opening) {
+      fenceLength = opening[1].length;
+      output.push(line);
+      previousBlank = false;
+      continue;
+    }
+
+    if (!line) {
+      if (!previousBlank) output.push("");
+      previousBlank = true;
+      continue;
+    }
+
+    output.push(line);
+    previousBlank = false;
+  }
+
+  return output.join("\n").trim();
 }
 
 function normalizeLink(value) {

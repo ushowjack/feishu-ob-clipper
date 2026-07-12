@@ -55,7 +55,6 @@ const elements = {
   settingsView: document.querySelector("#settings-view"),
   actionDock: document.querySelector("#action-dock"),
   title: document.querySelector("#document-title"),
-  preview: document.querySelector("#article-preview"),
   propertiesList: document.querySelector("#properties-list"),
   templatePropertiesList: document.querySelector("#template-properties-list"),
   openSettings: document.querySelector("#open-settings"),
@@ -149,16 +148,14 @@ async function initialize() {
   updateUi();
 
   if (validateFeishuUrl(tab?.url)) {
-    await loadArticlePreview();
+    await loadArticle();
   } else {
-    elements.preview.textContent = "当前页面不是受支持的飞书 Wiki 或文档。";
     showStatus("请打开一个飞书 Wiki 或文档页面。", "error");
   }
 }
 
-async function loadArticlePreview() {
+async function loadArticle() {
   try {
-    elements.preview.textContent = "正在读取当前页面…";
     const extracted = await sendToCurrentTab({ type: "EXTRACT_ARTICLE" });
     if (!extracted?.ok) throw new Error(extracted?.error || "读取飞书正文失败");
     state.article = extracted.article;
@@ -170,11 +167,9 @@ async function loadArticlePreview() {
     if (!elements.title.value || elements.title.value === initialTabTitle) {
       elements.title.value = extracted.article.title || initialTabTitle;
     }
-    elements.preview.textContent = htmlToPreviewText(extracted.article.html);
     renderProperties();
     if (state.vaultHandle && state.permission === "granted") showStatus("准备就绪，可编辑属性后保存。", "");
   } catch (error) {
-    elements.preview.textContent = "暂时无法读取正文预览。";
     const message = errorMessage(error);
     showStatus(connectionErrorMessage(message), "error");
   }
@@ -687,19 +682,9 @@ async function sendToCurrentTab(message) {
   return chrome.tabs.sendMessage(state.tab.id, message);
 }
 
-function htmlToPreviewText(html) {
-  const parsed = new DOMParser().parseFromString(`<div>${html || ""}</div>`, "text/html");
-  const container = parsed.body.firstElementChild;
-  const text = String(container?.innerText || container?.textContent || "")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  return text || "正文为空";
-}
-
 function autoResizeTitle() {
   elements.title.style.height = "auto";
-  elements.title.style.height = `${Math.max(72, elements.title.scrollHeight)}px`;
+  elements.title.style.height = `${Math.max(42, elements.title.scrollHeight)}px`;
 }
 
 function showStatus(message, type = "") {

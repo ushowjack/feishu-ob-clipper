@@ -49,6 +49,50 @@ test("转换常见块级与行内格式", () => {
   assert.match(result.markdown, /```js\nconst x = 1;\nconsole\.log\(x\);\n```/);
 });
 
+test("把相邻 HTML 块级容器保留为独立段落", () => {
+  const root = element("div", {}, [
+    element("div", {}, [text("第一段")]),
+    element("div", {}, [text("第二段")]),
+  ]);
+
+  const result = convertArticle(root, options);
+  assert.match(result.markdown, /第一段\n\n第二段/);
+});
+
+test("保留显式换行和行内格式两侧空格", () => {
+  const root = element("div", {}, [
+    element("p", {}, [text("第一行"), element("br"), text("第二行")]),
+    element("p", {}, [text("前文"), element("strong", {}, [text(" 中间 ")]), text("后文")]),
+  ]);
+
+  const result = convertArticle(root, options);
+  assert.match(result.markdown, /第一行\\\n第二行/);
+  assert.match(result.markdown, /前文 \*\*中间\*\* 后文/);
+});
+
+test("保留代码块内部连续空行", () => {
+  const root = element("div", {}, [
+    element("pre", {}, [element("code", { class: "language-text" }, [text("第一行\n\n\n第四行")])]),
+  ]);
+
+  const result = convertArticle(root, options);
+  assert.match(result.markdown, /```text\n第一行\n\n\n第四行\n```/);
+});
+
+test("缩进列表项中的后续段落", () => {
+  const root = element("div", {}, [
+    element("ul", {}, [
+      element("li", {}, [
+        element("p", {}, [text("首段")]),
+        element("p", {}, [text("次段")]),
+      ]),
+    ]),
+  ]);
+
+  const result = convertArticle(root, options);
+  assert.match(result.markdown, /- 首段\n\n  次段/);
+});
+
 test("转换有序、无序、嵌套和任务列表", () => {
   const root = element("div", {}, [
     element("ul", {}, [
