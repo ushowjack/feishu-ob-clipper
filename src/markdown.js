@@ -1,3 +1,5 @@
+import { ARTICLE_SOURCE, detectArticleSource } from "./site-rules.js";
+
 const TEXT_NODE = 3;
 const ELEMENT_NODE = 1;
 
@@ -8,6 +10,7 @@ export function convertArticle(root, options) {
     images,
     imagesByIdentity: new Map(),
     source: normalizeLink(options?.source),
+    sourceType: detectArticleSource(options?.source),
   };
   const body = normalizeMarkdown(renderChildren(root, context, { block: true }).replace(/\p{Cf}/gu, ""));
 
@@ -30,8 +33,10 @@ function renderNode(node, context, state = {}) {
   if (isFeishuGrid(node)) return renderFeishuGrid(node, context);
 
   if (/^h[1-6]$/.test(tag)) {
-    const level = Math.min(Number(tag[1]) + 1, 6);
     const content = children().replace(/\p{Cf}/gu, "").trim();
+    if (!hasMeaningfulText(node)) return content ? `${content}\n\n` : "";
+    const headingOffset = context.sourceType === ARTICLE_SOURCE.SCYS ? 0 : 1;
+    const level = Math.min(Number(tag[1]) + headingOffset, 6);
     return content ? `${"#".repeat(level)} ${content}\n\n` : "";
   }
 
@@ -50,7 +55,8 @@ function renderNode(node, context, state = {}) {
     case "span":
       return children();
     case "br":
-      return "\\\n";
+      if (context.sourceType === ARTICLE_SOURCE.SCYS) return "\n";
+      return hasMeaningfulText(state.parent) ? "\\\n" : "";
     case "strong":
     case "b":
       return wrapInline("**", children());
@@ -132,7 +138,13 @@ function renderNode(node, context, state = {}) {
 }
 
 function renderChildren(node, context, state = {}) {
-  return Array.from(node?.childNodes ?? []).map((child) => renderNode(child, context, state)).join("");
+  return Array.from(node?.childNodes ?? [])
+    .map((child) => renderNode(child, context, { ...state, parent: node }))
+    .join("");
+}
+
+function hasMeaningfulText(node) {
+  return String(node?.textContent ?? "").replace(/\p{Cf}/gu, "").trim().length > 0;
 }
 
 function renderBlock(value) {

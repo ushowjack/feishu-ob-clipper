@@ -1,4 +1,4 @@
-const DATABASE_NAME = "feishu-to-obsidian";
+const DATABASE_NAME = "caizhai-to-obsidian";
 const STORE_NAME = "handles";
 const VAULT_KEY = "vault";
 

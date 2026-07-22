@@ -25,11 +25,30 @@ async function extractArticle() {
     if (core.isLikelyAccessError(document)) {
       return { ok: false, error: "当前页面未登录、无访问权限或文档不存在。" };
     }
-    const root = core.findArticleRoot(document);
-    if (!root) {
-      return { ok: false, error: "没有识别到已加载的飞书正文，请等待页面加载完成后重试。" };
+    const source = core.detectArticleSource(location.href);
+    if (!source) {
+      return { ok: false, error: "当前网址不是受支持的飞书文档或生财文章。" };
     }
-    const clone = await extractCompleteArticle(core, root);
+    const root = core.findArticleRoot(document, source);
+    if (!root) {
+      const sourceName = source === core.ARTICLE_SOURCE.FEISHU ? "飞书" : "生财";
+      return { ok: false, error: `没有识别到已加载的${sourceName}正文，请等待页面加载完成后重试。` };
+    }
+    const clone = source === core.ARTICLE_SOURCE.FEISHU
+      ? await core.extractFeishuArticle({
+        documentRef: document,
+        articleRoot: root,
+        imageCache: imageBlobCache,
+        readImage: readImageBlob,
+        waitForRender: waitForVirtualRender,
+      })
+      : core.extractScysArticle(root);
+    const metadata = source === core.ARTICLE_SOURCE.SCYS
+      ? core.extractScysMetadata(document)
+      : {
+        title: core.extractDocumentTitle(document),
+        publishedDate: core.extractDocumentDate(document),
+      };
     core.absolutizeCloneUrls(clone, location.href);
     const textLength = String(clone.textContent ?? "").replace(/\s+/g, "").length;
     if (textLength < 30) {
@@ -38,54 +57,15 @@ async function extractArticle() {
     return {
       ok: true,
       article: {
-        title: core.extractDocumentTitle(document),
-        publishedDate: core.extractDocumentDate(document),
+        title: metadata.title,
+        publishedDate: metadata.publishedDate,
         html: clone.innerHTML,
         url: location.href,
       },
     };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "读取飞书正文失败。" };
+    return { ok: false, error: error instanceof Error ? error.message : "读取文章正文失败。" };
   }
-}
-
-async function extractCompleteArticle(core, root) {
-  if (!root.matches?.(".page-main")) return core.cleanArticleClone(root);
-  const scrollContainer = core.findDocumentScrollContainer(document, root);
-  if (!scrollContainer || scrollContainer.scrollHeight <= scrollContainer.clientHeight + 100) {
-    return core.cleanArticleClone(root);
-  }
-
-  const originalScrollTop = scrollContainer.scrollTop;
-  const blocks = new Map();
-  try {
-    const result = await core.collectVirtualizedBlocks({
-      scrollContainer,
-      renderAtCurrentPosition: () => waitForStableRenderedBlocks(core, blocks),
-    });
-    if (!result.complete) {
-      throw new Error("飞书正文仍在加载，未能确认已采集到文档末尾，本次未写入文件。请稍后重试。");
-    }
-  } finally {
-    scrollContainer.scrollTop = originalScrollTop;
-    await waitForVirtualRender(40);
-  }
-
-  return blocks.size ? core.buildArticleFromBlocks(document, blocks) : core.cleanArticleClone(root);
-}
-
-async function waitForStableRenderedBlocks(core, blocks) {
-  const result = await core.waitForStableCollection({
-    wait: () => waitForVirtualRender(80),
-    collect: () => core.collectRenderedBlocks(document, blocks),
-  });
-  await core.cacheRenderedBlobImages({
-    documentRef: document,
-    collection: blocks,
-    cache: imageBlobCache,
-    readImage: readImageBlob,
-  });
-  return result;
 }
 
 function waitForVirtualRender(delay = 90) {
@@ -112,7 +92,10 @@ async function fetchImage(rawUrl, cacheId) {
       return { ok: true, dataUrl: url.href, mimeType: url.href.slice(5, url.href.indexOf(";")) || "image/png" };
     }
 
-    const response = await fetch(url.href, { credentials: "include", cache: "no-store" });
+    const response = await fetch(url.href, {
+      credentials: core.getImageFetchCredentials(url.href, location.href),
+      cache: "no-store",
+    });
     if (!response.ok) throw new Error(`图片请求失败（HTTP ${response.status}）`);
     const blob = await response.blob();
     if (!blob.type.startsWith("image/")) throw new Error("返回内容不是图片");
@@ -124,7 +107,11 @@ async function fetchImage(rawUrl, cacheId) {
 }
 
 async function readImageBlob(rawUrl) {
-  const response = await fetch(rawUrl, { credentials: "include", cache: "no-store" });
+  const core = await corePromise;
+  const response = await fetch(rawUrl, {
+    credentials: core.getImageFetchCredentials(rawUrl, location.href),
+    cache: "no-store",
+  });
   if (!response.ok) throw new Error(`图片请求失败（HTTP ${response.status}）`);
   const blob = await response.blob();
   if (!blob.type.startsWith("image/")) throw new Error("返回内容不是图片");

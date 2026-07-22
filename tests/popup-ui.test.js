@@ -3,9 +3,23 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 function cssRule(css, selector) {
+  const normalizedCss = css.replace(/\r\n/g, "\n");
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return css.match(new RegExp(`${escaped}\\s*\\{([\\s\\S]*?)\\}`))?.[1] || "";
+  return normalizedCss.match(new RegExp(`${escaped}\\s*\\{([\\s\\S]*?)\\}`))?.[1] || "";
 }
+
+test("弹窗使用财摘品牌和多站点文章文案", async () => {
+  const [html, popupScript] = await Promise.all([
+    readFile(new URL("../popup.html", import.meta.url), "utf8"),
+    readFile(new URL("../src/popup.js", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(html, /<title>财摘<\/title>/);
+  assert.match(html, /class="brand-name">财摘<\/strong>/);
+  assert.doesNotMatch(html, /飞摘|attachments\/(?:feishu|scys)/);
+  assert.match(popupScript, /请打开受支持的飞书文档或生财文章/);
+  assert.doesNotMatch(popupScript, /validate(?:Feishu|Scys)Url/);
+});
 
 test("保存结果提示允许完整换行并限制最大高度", async () => {
   const css = await readFile(new URL("../popup.css", import.meta.url), "utf8");
@@ -66,7 +80,7 @@ test("主界面不渲染正文预览但仍保留文章提取流程", async () =>
   assert.match(popupScript, /state\.article = extracted\.article/);
 });
 
-test("转换正文时传入飞书原文地址供临时视频回退", async () => {
+test("转换正文时传入生财原文地址供临时视频回退", async () => {
   const popupScript = await readFile(new URL("../src/popup.js", import.meta.url), "utf8");
 
   assert.match(popupScript, /source:\s*extracted\.article\.url/);

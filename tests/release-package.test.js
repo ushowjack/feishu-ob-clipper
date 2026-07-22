@@ -73,7 +73,7 @@ test("rejects non-PNG files in the runtime assets directory", () => {
 
 test("rejects an archive nested below a project directory", () => {
   assert.throws(
-    () => validateArchiveEntries(["feishu-ob-clipper/manifest.json"]),
+    () => validateArchiveEntries(["caizhai-ob-clipper/manifest.json"]),
     /不允许的文件/,
   );
 });
@@ -103,7 +103,7 @@ test("packages the extension as a versioned flat ZIP", () => {
   const archive = path.join(
     projectRoot,
     "dist",
-    `feishu-ob-clipper-v${currentVersion}.zip`,
+    `caizhai-ob-clipper-v${currentVersion}.zip`,
   );
   rmSync(path.dirname(archive), { recursive: true, force: true });
 

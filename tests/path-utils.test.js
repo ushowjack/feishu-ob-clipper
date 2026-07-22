@@ -10,15 +10,15 @@ import {
 
 test("清理非法文件名并提供回退标题", () => {
   assert.equal(sanitizeFilename(' A/B:C*D?"<>|. '), "A B C D");
-  assert.equal(sanitizeFilename("   "), "未命名飞书文档");
+  assert.equal(sanitizeFilename("   "), "未命名文章");
 });
 
 test("限制文件名长度并清理控制字符", () => {
   assert.equal(sanitizeFilename(`a\u0000${"中".repeat(130)}`).length, 120);
 });
 
-test("清理飞书标题中的零宽和 Unicode 格式字符", () => {
-  assert.equal(sanitizeFilename("飞书标题\u200B\u200E\uFEFF"), "飞书标题");
+test("清理文章标题中的零宽和 Unicode 格式字符", () => {
+  assert.equal(sanitizeFilename("文章标题\u200B\u200E\uFEFF"), "文章标题");
 });
 
 test("解析 Vault 内相对目录", () => {

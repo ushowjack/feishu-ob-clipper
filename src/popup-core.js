@@ -1,12 +1,7 @@
-export function validateFeishuUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:"
-      && (url.hostname === "feishu.cn" || url.hostname.endsWith(".feishu.cn"))
-      && /^\/(?:wiki|docx|docs)\//.test(url.pathname);
-  } catch {
-    return false;
-  }
+import { isSupportedArticleUrl } from "./site-rules.js";
+
+export function validateSupportedArticleUrl(value) {
+  return isSupportedArticleUrl(value);
 }
 
 export function dataUrlToBlob(value) {

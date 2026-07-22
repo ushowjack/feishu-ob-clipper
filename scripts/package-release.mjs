@@ -35,7 +35,7 @@ const distDirectory = path.join(projectRoot, "dist");
 const stagingDirectory = path.join(distDirectory, "staging");
 const archivePath = path.join(
   distDirectory,
-  `feishu-ob-clipper-v${version}.zip`,
+  `caizhai-ob-clipper-v${version}.zip`,
 );
 
 rmSync(distDirectory, { recursive: true, force: true });

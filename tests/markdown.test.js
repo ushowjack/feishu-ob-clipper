@@ -71,6 +71,48 @@ test("保留显式换行和行内格式两侧空格", () => {
   assert.match(result.markdown, /前文 \*\*中间\*\* 后文/);
 });
 
+test("清理生财空换行并保留原始标题层级，图片标题降为普通图片", () => {
+  const scysOptions = {
+    ...options,
+    source: "https://scys.com/articleDetail/xq_topic/45544285884128158",
+  };
+  const root = element("div", {}, [
+    element("p", {}, [element("br")]),
+    element("strong", {}, [element("br")]),
+    element("h2", {}, [element("br")]),
+    element("h2", {}, [text("一、选品思路")]),
+    element("h3", {}, [text("第一步：找到一个好品")]),
+    element("h2", {}, [element("img", { src: "https://article-images.zsxq.com/example.jpg" })]),
+  ]);
+
+  const result = convertArticle(root, scysOptions);
+
+  assert.match(result.markdown, /^## 一、选品思路$/m);
+  assert.match(result.markdown, /^### 第一步：找到一个好品$/m);
+  assert.match(result.markdown, /^@@FEISHU_IMAGE_1@@$/m);
+  assert.doesNotMatch(result.markdown, /^\\$/m);
+  assert.doesNotMatch(result.markdown, /\*\*\\\*\*/);
+  assert.doesNotMatch(result.markdown, /^#{2,6}\s+\\$/m);
+  assert.doesNotMatch(result.markdown, /^#{2,6}\s+@@FEISHU_IMAGE_/m);
+});
+
+test("生财短帖用连续 br 分段时不输出反斜杠", () => {
+  const root = element("div", { class: "post-content" }, [
+    text("第一段"),
+    element("br"),
+    element("br"),
+    text("第二段"),
+  ]);
+
+  const result = convertArticle(root, {
+    ...options,
+    source: "https://scys.com/articleDetail/xq_topic/22255482425242851",
+  });
+
+  assert.match(result.markdown, /第一段\n\n第二段/);
+  assert.doesNotMatch(result.markdown, /\\$/m);
+});
+
 test("保留代码块内部连续空行", () => {
   const root = element("div", {}, [
     element("pre", {}, [element("code", { class: "language-text" }, [text("第一行\n\n\n第四行")])]),

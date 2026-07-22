@@ -17,7 +17,7 @@ import {
   dataUrlToBlob,
   localDate,
   nextPropertyKey,
-  validateFeishuUrl,
+  validateSupportedArticleUrl,
 } from "./popup-core.js";
 import { parseRelativeDirectory } from "./path-utils.js";
 import {
@@ -113,7 +113,7 @@ async function initialize() {
     chrome.tabs.query({ active: true, currentWindow: true }),
     chrome.storage.local.get({
       noteDirectory: "raw/01-articles",
-      attachmentDirectory: "attachments/feishu",
+      attachmentDirectory: "attachments/caizhai",
       propertyTemplate: createDefaultTemplate(),
       propertyTemplateVersion: 0,
     }),
@@ -147,17 +147,17 @@ async function initialize() {
   renderProperties();
   updateUi();
 
-  if (validateFeishuUrl(tab?.url)) {
+  if (validateSupportedArticleUrl(tab?.url)) {
     await loadArticle();
   } else {
-    showStatus("请打开一个飞书 Wiki 或文档页面。", "error");
+    showStatus("请打开受支持的飞书文档或生财文章。", "error");
   }
 }
 
 async function loadArticle() {
   try {
     const extracted = await sendToCurrentTab({ type: "EXTRACT_ARTICLE" });
-    if (!extracted?.ok) throw new Error(extracted?.error || "读取飞书正文失败");
+    if (!extracted?.ok) throw new Error(extracted?.error || "读取文章正文失败");
     state.article = extracted.article;
     applyExtractedPublishedDate(extracted.article.publishedDate);
 
@@ -198,7 +198,7 @@ async function chooseVault() {
     return;
   }
   try {
-    const handle = await window.showDirectoryPicker({ mode: "readwrite", id: "feishu-to-obsidian-vault" });
+    const handle = await window.showDirectoryPicker({ mode: "readwrite", id: "caizhai-to-obsidian-vault" });
     await saveDirectoryHandle(handle);
     state.vaultHandle = handle;
     state.permission = await queryVaultPermission(handle);
@@ -210,8 +210,8 @@ async function chooseVault() {
 }
 
 async function saveCurrentArticle() {
-  if (!validateFeishuUrl(state.tab?.url)) {
-    showStatus("请先打开一个飞书 Wiki 或文档页面。", "error");
+  if (!validateSupportedArticleUrl(state.tab?.url)) {
+    showStatus("请打开受支持的飞书文档或生财文章。", "error");
     return;
   }
 
@@ -229,17 +229,17 @@ async function saveCurrentArticle() {
     const title = elements.title.value.replace(/\p{Cf}/gu, "").trim() || "未命名笔记";
     const frontmatter = serializeFrontmatter(state.properties);
 
-    setBusy(true, "正在读取飞书正文…");
+    setBusy(true, "正在读取文章正文…");
     startedArticleSave = true;
     await persistDirectories();
     const extracted = state.article
       ? { ok: true, article: state.article }
       : await sendToCurrentTab({ type: "EXTRACT_ARTICLE" });
-    if (!extracted?.ok) throw new Error(extracted?.error || "读取飞书正文失败");
+    if (!extracted?.ok) throw new Error(extracted?.error || "读取文章正文失败");
 
     const parsed = new DOMParser().parseFromString(`<div>${extracted.article.html}</div>`, "text/html");
     const root = parsed.body.firstElementChild;
-    if (!root) throw new Error("飞书正文结构为空");
+    if (!root) throw new Error("文章正文结构为空");
     const converted = convertArticle(root, {
       title,
       frontmatter,
@@ -663,7 +663,7 @@ function updateUi() {
     elements.primary.disabled = state.busy;
   } else {
     elements.primary.textContent = state.busy ? "正在保存…" : "添加到 Obsidian";
-    elements.primary.disabled = state.busy || !validateFeishuUrl(state.tab?.url);
+    elements.primary.disabled = state.busy || !validateSupportedArticleUrl(state.tab?.url);
   }
   autoResizeTitle();
 }
@@ -704,7 +704,7 @@ function showSettingsStatus(message, type = "") {
 
 function connectionErrorMessage(message) {
   return /Receiving end does not exist|Could not establish connection/.test(message)
-    ? "插件尚未注入当前页面，请刷新飞书页面后重试。"
+    ? "插件尚未注入当前页面，请刷新当前文档或文章后重试。"
     : message;
 }
 

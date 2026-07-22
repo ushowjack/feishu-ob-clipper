@@ -1,6 +1,6 @@
 {
-  "name": "feizhai-obsidian-clipper",
-  "version": "0.2.0",
+  "name": "caizhai-ob-clipper",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {

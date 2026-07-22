@@ -1,4 +1,4 @@
-const DEFAULT_TITLE = "未命名飞书文档";
+const DEFAULT_TITLE = "未命名文章";
 const MAX_FILENAME_LENGTH = 120;
 
 export function sanitizeFilename(value, fallback = DEFAULT_TITLE) {

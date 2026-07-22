@@ -3,19 +3,23 @@ import assert from "node:assert/strict";
 
 import {
   absolutizeCloneUrls,
+  extractDocumentDate,
+  findArticleRoot,
+  resolveFetchableImageUrl,
+} from "../src/content-core.js";
+import {
   blockTypeToSemanticTag,
   cacheRenderedBlobImages,
-  chooseArticleCandidate,
-  cleanArticleClone,
+  cleanFeishuArticleClone as cleanArticleClone,
   collectRenderedBlocks,
   collectVirtualizedBlocks,
-  extractDocumentDate,
-  resolveFetchableImageUrl,
+  consumeCachedImage,
+  chooseArticleCandidate,
   scoreArticleCandidate,
   stabilizeFeishuImageUrls,
-  consumeCachedImage,
   waitForStableCollection,
-} from "../src/content-core.js";
+} from "../src/feishu-site.js";
+import { appendScysArticleImages, extractScysArticle } from "../src/scys-site.js";
 import { element, text } from "./support/fake-dom.js";
 
 function candidate({ text, blocks = 0, hidden = false, className = "" }) {
@@ -38,6 +42,110 @@ function candidate({ text, blocks = 0, hidden = false, className = "" }) {
     },
   };
 }
+
+test("生财文章提取 content-container，包含摘要和展开的完整正文", () => {
+  const article = candidate({ text: "当前文章摘要", blocks: 1, className: "post-content" });
+  const expanded = candidate({ text: "展开的完整正文", blocks: 2, className: "feishu-doc-stream" });
+  const container = candidate({
+    text: `${article.textContent}${expanded.textContent}`,
+    blocks: 3,
+    className: "content-container",
+  });
+  const main = {
+    querySelector(selector) {
+      if (selector === ":scope > .content-container") return container;
+      if (selector === ":scope > .content-container > .post-content") return article;
+      return null;
+    },
+  };
+  const title = {
+    closest(selector) {
+      return selector === "main" ? main : null;
+    },
+  };
+  const documentRef = {
+    querySelectorAll(selector) {
+      if (selector === ".post-title--for-long-article, .post-title") return [title];
+      return [];
+    },
+  };
+
+  assert.equal(findArticleRoot(documentRef, "scys"), container);
+});
+
+test("生财短帖把正文同级的 image-list 追加到正文副本", () => {
+  const appended = [];
+  const clone = { append: (node) => appended.push(node) };
+  const imageListClone = { className: "image-list-clone" };
+  const imageList = {
+    cloneNode(deep) {
+      assert.equal(deep, true);
+      return imageListClone;
+    },
+  };
+  const main = {
+    querySelector(selector) {
+      return selector === ":scope > .image-list" ? imageList : null;
+    },
+  };
+  const article = {
+    closest(selector) {
+      return selector === "main" ? main : null;
+    },
+  };
+
+  assert.equal(appendScysArticleImages(clone, article), clone);
+  assert.deepEqual(appended, [imageListClone]);
+});
+
+test("生财长文没有独立 image-list 时不追加其他页面图片", () => {
+  const appended = [];
+  const clone = { append: (node) => appended.push(node) };
+  const article = {
+    closest() {
+      return { querySelector: () => null };
+    },
+  };
+
+  assert.equal(appendScysArticleImages(clone, article), clone);
+  assert.deepEqual(appended, []);
+});
+
+test("生财正文抓取由生财适配器完成克隆和独立图片合并", () => {
+  const imageListClone = { className: "image-list-clone" };
+  const appended = [];
+  const articleClone = { append: (node) => appended.push(node) };
+  const article = {
+    cloneNode(deep) {
+      assert.equal(deep, true);
+      return articleClone;
+    },
+    closest() {
+      return {
+        querySelector: () => ({
+          cloneNode: () => imageListClone,
+        }),
+      };
+    },
+  };
+
+  assert.equal(extractScysArticle(article), articleClone);
+  assert.deepEqual(appended, [imageListClone]);
+});
+
+test("飞书网址只走原有飞书正文候选，不走生财选择器", () => {
+  const article = candidate({ text: "飞书正文".repeat(100), blocks: 20, className: "page-main" });
+  const queried = [];
+  const documentRef = {
+    querySelectorAll(selector) {
+      queried.push(selector);
+      return selector === ".page-main" ? [article] : [];
+    },
+  };
+
+  assert.equal(findArticleRoot(documentRef, "feishu"), article);
+  assert.equal(queried.includes(".post-title--for-long-article, .post-title"), false);
+});
 
 test("优先选择长正文而非导航", () => {
   const nav = candidate({ text: "首页 文档 设置", blocks: 1 });

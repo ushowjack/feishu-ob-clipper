@@ -7,16 +7,15 @@ import {
   localIsoTimestamp,
   nextPropertyKey,
   shouldPreserveStatus,
-  validateFeishuUrl,
+  validateSupportedArticleUrl,
 } from "../src/popup-core.js";
 
-test("只接受飞书 HTTPS 文档地址", () => {
-  assert.equal(validateFeishuUrl("https://a.feishu.cn/wiki/token"), true);
-  assert.equal(validateFeishuUrl("https://a.feishu.cn/docx/token"), true);
-  assert.equal(validateFeishuUrl("https://a.feishu.cn/docs/token"), true);
-  assert.equal(validateFeishuUrl("https://evil.example/wiki/token"), false);
-  assert.equal(validateFeishuUrl("https://feishu.cn.evil.example/wiki/token"), false);
-  assert.equal(validateFeishuUrl("http://a.feishu.cn/wiki/token"), false);
+test("只接受受支持的飞书文档和生财文章地址", () => {
+  assert.equal(validateSupportedArticleUrl("https://example.feishu.cn/wiki/token"), true);
+  assert.equal(validateSupportedArticleUrl("https://example.feishu.cn/docx/token"), true);
+  assert.equal(validateSupportedArticleUrl("https://scys.com/articleDetail/xq_topic/45544285884128158"), true);
+  assert.equal(validateSupportedArticleUrl("https://scys.com/activity"), false);
+  assert.equal(validateSupportedArticleUrl("https://evil.example/articleDetail/xq_topic/1"), false);
 });
 
 test("把 base64 data URL 恢复为 Blob", async () => {
